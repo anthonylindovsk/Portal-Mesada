@@ -1,0 +1,81 @@
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: linear-gradient(139deg, #0000, #696969);
+  background-repeat: no-repeat;
+  min-height: 100vh;
+}
+
+.parte1 {
+  color: white;
+  font-size: 24px;
+  transition: 0.5s;
+}
+
+.parte1:hover {
+  color: azure;
+  transform: scale(0.9);
+  cursor: pointer;
+}
+
+.partep {
+  color: azure;
+}
+
+.botao {
+  padding: 30px;
+  border-radius: 7px;
+  border: none;
+  margin: 20px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.botao:hover {
+  background-color: gainsboro;
+  transform: scale(1.1);
+}
+
+.linkm{
+  text-decoration: none;
+  color: azure;
+}
+
+.pabas {
+  display: flex;
+  justify-content: center;
+  margin: 30px;
+}
+
+.pabas a.botao {
+  background-color: white;
+  color: black;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.pfazer{
+   background-color: white;
+  border-radius: 5px;
+  padding: 15px
+}
+
+.pconcluidas {
+  background-color: white;
+  border-radius: 5px;
+  padding: 15px
+}
+
+.pconcluidas h3 {
+  margin-top: 0;
+  color: black;
+}
+
+.pfazer h3{
+   margin-top: 0;
+  color: black;
+}
