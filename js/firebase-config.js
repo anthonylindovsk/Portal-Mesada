@@ -1,3 +1,6 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
 const firebaseConfig = {
   apiKey: "AIzaSyD3d5yKWu5hjggINLWUGmJEG6XbngVP9IE",
   authDomain: "portal-mesada.firebaseapp.com",
@@ -7,5 +10,6 @@ const firebaseConfig = {
   appId: "1:237825551972:web:53066aed9e287b354ab971"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const app = initializeApp(firebaseConfig);
+
+export const db = getFirestore(app);
