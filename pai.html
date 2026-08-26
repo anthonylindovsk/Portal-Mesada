@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Pai</title>
+        <link rel="stylesheet" href="css/style.css">
+    </head>
+    <body>
+        <div class="parte1">
+            <h1>Bem Vindo</h1>
+            <h2>Adicione uma tarefa:</h2>
+        </div>
+
+        <form id="tarefa" class="tarefa">
+            <input type="text" id="nome" placeholder="Nome da tarefa" required>
+            <textarea id="descricao"
+                placeholder="Descrição (opcional)"></textarea>
+            <input type="number" id="valor" placeholder="Valor (R$)" min="0"
+                required>
+            <input type="datetime-local" id="prazo" required>
+            <button type="submit" class="botao">➕ Criar tarefa</button>
+        </form>
+
+        <div class="parte1"><h2>Tarefas</h2></div>
+        <div id="lista-tarefas" class="pfazer"></div>
+
+        <script type="module" src="js/pai.js"></script>
+    </body>
+</html>
