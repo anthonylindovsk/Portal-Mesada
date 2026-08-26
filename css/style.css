@@ -1,3 +1,9 @@
+:root {
+  --azulestranho: azure;
+  --branco: white;
+  --preto: black;
+}
+
 body {
   display: flex;
   flex-direction: column;
@@ -11,23 +17,24 @@ body {
 }
 
 .parte1 {
-  color: white;
+  color: var(--branco);
   font-size: 24px;
   transition: 0.5s;
 }
 
 .parte1:hover {
-  color: azure;
+  color: var(--azulestranho);
   transform: scale(0.9);
   cursor: pointer;
 }
 
 .partep {
-  color: azure;
+  color: var(--azulestranho);
 }
 
 .botao {
   padding: 30px;
+  min-height: 44px;
   border-radius: 7px;
   border: none;
   margin: 20px;
@@ -40,9 +47,9 @@ body {
   transform: scale(1.1);
 }
 
-.linkm{
+.linkm {
   text-decoration: none;
-  color: azure;
+  color: var(--azulestranho);
 }
 
 .pabas {
@@ -52,30 +59,62 @@ body {
 }
 
 .pabas a.botao {
-  background-color: white;
-  color: black;
+  background-color: var(--branco);
+  color: var(--preto);
   text-decoration: none;
   font-weight: 600;
 }
 
-.pfazer{
-   background-color: white;
+.pfazer {
+  background-color: var(--branco);
   border-radius: 5px;
-  padding: 15px
+  padding: 15px;
 }
 
 .pconcluidas {
-  background-color: white;
+  background-color: var(--branco);
   border-radius: 5px;
-  padding: 15px
+  padding: 15px;
 }
 
 .pconcluidas h3 {
   margin-top: 0;
-  color: black;
+  color: var(--preto);
 }
 
-.pfazer h3{
-   margin-top: 0;
-  color: black;
+.pfazer h3 {
+  margin-top: 0;
+  color: var(--preto);
+}
+
+@media (max-width: 480px) {
+  .botao {
+    padding: 18px;
+    width: 80%;
+  }
+}
+
+.tarefa {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 300px;
+  margin: 20px;
+}
+
+.tarefa input {
+  padding: 10px;
+  border-radius: 5px;
+  border: none;
+  font-size: 15px;
+  font-family:sans-serif;
+}
+
+.tarefa textarea {
+  padding: 10px;
+  border-radius: 5px;
+  border: none;
+  font-size: 15px;
+  font-family: sans-serif;
 }
