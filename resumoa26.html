@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Resumo</title>
+        <link rel="stylesheet" href="css/style.css">
+    </head>
+    <body>
+        <script>
+      if (sessionStorage.getItem('perfilAtivo') !== 'pai') {
+        location.href = 'index.html';
+      }
+    </script>
+        <div class="parte1">
+            <h1>Resumo</h1>
+        </div>
+
+        <div class="temporal1">
+            <label>De: <input type="date" id="periodo-inicio"></label>
+            <label>Até: <input type="date" id="periodo-fim"></label>
+            <button id="botao-mes-anterior" class="botao">Mês anterior</button>
+            <p id="periodo-texto"></p>
+        </div>
+
+        <div class="pacote2">
+            <div id="resumo-anthony" class="pacote2"></div>
+            <div id="resumo-gabriel" class="pacote2"></div>
+        </div>
+
+        <script type="module" src="js/resumoa26.js"></script>
+        <script type="module" src="js/auth.js"></script>
+
+        
+    </body>
+</html>

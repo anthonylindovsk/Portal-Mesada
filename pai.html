@@ -7,24 +7,41 @@
         <link rel="stylesheet" href="css/style.css">
     </head>
     <body>
+        <script>
+      if (sessionStorage.getItem('perfilAtivo') !== 'pai') {
+        location.href = 'index.html';
+      }
+    </script>
         <div class="parte1">
             <h1>Bem Vindo</h1>
             <h2>Adicione uma tarefa:</h2>
         </div>
 
+        <a class="botao" href="resumoa26.html">📊 Ver resumo</a>
+
         <form id="tarefa" class="tarefa">
-            <input type="text" id="nome" placeholder="Nome da tarefa" required>
+            <input type="text" id="nome" placeholder="Nome da tarefa"
+                required>
             <textarea id="descricao"
                 placeholder="Descrição (opcional)"></textarea>
             <input type="number" id="valor" placeholder="Valor (R$)" min="0"
                 required>
+            <select id="destinatario" required>
+                <option value="anthony">Anthony</option>
+                <option value="bonus">Tarefa bônus (quem pegar
+                    primeiro)</option>
+            </select>
             <input type="datetime-local" id="prazo" required>
             <button type="submit" class="botao">➕ Criar tarefa</button>
         </form>
 
+        <div class="parte1"><h2>Aguardando aprovação</h2></div>
+        <div id="lista-pendentes" class="pfazer"></div>
+
         <div class="parte1"><h2>Tarefas</h2></div>
         <div id="lista-tarefas" class="pfazer"></div>
 
+        <script type="module" src="js/auth.js"></script>
         <script type="module" src="js/pai.js"></script>
     </body>
 </html>

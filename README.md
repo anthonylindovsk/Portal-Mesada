@@ -1,5 +1,5 @@
 # perfis
 
-## tres perfis
+## perfis
 
-os tres pefis (pai,anthony e gabriel) foi feito pelo console do firebase na coleção `perfis` cada um com pinDefinido:false.
+os perfis (pai e anthony) foi feito pelo console do firebase na coleção `perfis` cada um com pinDefinido:false.

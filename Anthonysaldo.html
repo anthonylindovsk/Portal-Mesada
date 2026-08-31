@@ -7,11 +7,17 @@
         <link rel="stylesheet" href="css/style.css">
     </head>
     <body>
+        <script>
+      if (sessionStorage.getItem('perfilAtivo') !== 'anthony') {
+        location.href = 'index.html';
+      }
+    </script>
         <div id="erro-auth"></div>
         <div class="parte1">
             <h1>Olá, Anthony!</h1>
             <h2 class="saldo">Saldo total: R$ 0,00</h2>
         </div>
+        <div id="bonus" class="bonus"></div>
         <nav class="pabas">
             <a class="botao" href="#" onclick="mostrarAba('pfazer')">Tarefas
                 para fazer</a>
@@ -28,5 +34,6 @@
         </section>
         <script src="js/script.js"></script>
         <script type="module" src="js/auth.js"></script>
+        <script type="module" src="js/anthony.js"></script>
     </body>
 </html>

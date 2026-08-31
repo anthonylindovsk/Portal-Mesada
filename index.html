@@ -15,15 +15,32 @@
         <div class="partep">
             (Escolha seu perfil.)
         </div>
-        <button class="botao"
-            onclick="location.href='pai.html'">🧑Pai(master)</button>
-        <button class="botao"
-            onclick="location.href='Anthonysaldo.html'">🧑Anthony(junior)</button>
+        <button class="botao" onclick="abrirModal('pai', 'pai.html')">🧑Pai(master)</button>
+        <button class="botao" onclick="abrirModal('anthony', 'Anthonysaldo.html')">🧑Anthony(junior)</button>
         <div class="linkm">
             <a href="https://investidorsardinha.r7.com/aprender/mesada/">Clique
                 aqui para saber mais.</a>
         </div>
-        <script type="module" src="js/firebase-config.js"></script>
+        <div id="modalLogin" class="tirar">
+            <div class="modaltu">
+                <button id="fecharModal" class="fecharmodal" onclick="fecharModal()">x</button>
+
+                <label class="modalPIN">PIN</label>
+                <input type="password" id="inputPin" class="modalP"
+                    placeholder="••••" maxlength="4" inputmode="numeric">
+
+                <div id="grupoConfirma">
+                    <label class="modalPIN">PIN novamente</label>
+                    <input type="password" id="Confirma" class="modalP"
+                        placeholder="••••" maxlength="4" inputmode="numeric">
+                </div>
+
+                <p id="erroPin"></p>
+
+                <button class="botaomodal" onclick="confirmarPin()">CONTINUAR</button>
+            </div>
+        </div>
+        <script type="module" src="js/pin.js"></script>
         <script type="module" src="js/auth.js"></script>
     </body>
 </html>
