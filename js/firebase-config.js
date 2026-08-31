@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD3d5yKWu5hjggINLWUGmJEG6XbngVP9IE",
@@ -12,4 +13,5 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
-export { collection, addDoc, Timestamp };
+export const storage = getStorage(app);
+export { collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, serverTimestamp, runTransaction, ref, uploadBytes, getDownloadURL };
