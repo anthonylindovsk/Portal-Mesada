@@ -1,7 +1,8 @@
-import { db, storage, collection, onSnapshot, query, where, doc, updateDoc, serverTimestamp, runTransaction, ref, uploadBytes, getDownloadURL } from "./firebase-config.js";
+import { db, storage, collection, onSnapshot, query, where, doc, updateDoc, deleteDoc, serverTimestamp, runTransaction, ref, uploadBytes, getDownloadURL } from "./firebase-config.js";
 
 const listaFazer = document.getElementById("pfazer");
 const listaConcluidas = document.getElementById("pconcluidas");
+const listaPerdidas = document.getElementById("pperdidas");
 const listaBonus = document.getElementById("bonus");
 const saldoElemento = document.querySelector(".saldo");
 const tarefasQuery = query(collection(db, "tarefas"), where("criancaId", "==", "anthony"));
@@ -13,11 +14,18 @@ async function expirarSeVencida(tarefaId, tarefa) {
   }
 }
 
+async function excluirTarefa(tarefaId) {
+  if (!confirm("Tem certeza que quer excluir essa tarefa? Essa ação não pode ser desfeita.")) return;
+  await deleteDoc(doc(db, "tarefas", tarefaId));
+}
+
 onSnapshot(tarefasQuery, (snapshot) => {
   listaFazer.innerHTML = "<h3>Tarefas para fazer</h3>";
   listaConcluidas.innerHTML = "<h3>Concluídas</h3>";
+  listaPerdidas.innerHTML = "<h3>Perdidas</h3>";
   var temFazer = false;
   var temConcluidas = false;
+  var temPerdidas = false;
   let saldoCentavos = 0;
 
   snapshot.forEach((docSnap) => {
@@ -53,17 +61,32 @@ onSnapshot(tarefasQuery, (snapshot) => {
         <p>${tarefa.descricao}</p>
         <p>Valor: R$ ${valorReais}</p>
         <p>${tarefa.pago ? "Pago" : "Aguardando pagamento"}</p>
+        <button class="botao abacaxi6">×</button>
       `;
+      item.querySelector(".abacaxi6").addEventListener("click", () => excluirTarefa(tarefaId));
       listaConcluidas.appendChild(item);
       temConcluidas = true;
       if (!tarefa.pago) {
         saldoCentavos = saldoCentavos + tarefa.valorCentavos;
       }
+    } else if (tarefa.status === "perdida") {
+      const motivo = tarefa.motivoRejeicao ? `<p>Motivo: ${tarefa.motivoRejeicao}</p>` : "";
+      item.innerHTML = `
+        <h4>${tarefa.nome}</h4>
+        <p>${tarefa.descricao}</p>
+        <p>Valor: R$ ${valorReais}</p>
+        ${motivo}
+        <button class="botao abacaxi6">×</button>
+      `;
+      item.querySelector(".abacaxi6").addEventListener("click", () => excluirTarefa(tarefaId));
+      listaPerdidas.appendChild(item);
+      temPerdidas = true;
     }
   });
 
   if (!temFazer) listaFazer.innerHTML += "<p>Nenhuma tarefa ainda.</p>";
   if (!temConcluidas) listaConcluidas.innerHTML += "<p>Nenhuma tarefa concluída ainda.</p>";
+  if (!temPerdidas) listaPerdidas.innerHTML += "<p>Nenhuma tarefa perdida.</p>";
   saldoElemento.textContent = "Saldo total: R$ " + (saldoCentavos / 100).toFixed(2);
 });
 
