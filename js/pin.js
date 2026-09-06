@@ -9,8 +9,10 @@ async function abrirModal(id, pagina) {
   document.getElementById("erroPin").textContent = "";
   document.getElementById("inputPin").value = "";
   document.getElementById("Confirma").value = "";
+
   const snap = await getDoc(doc(db, "perfis", id));
   const primeiraVez = !snap.data().pinDefinido;
+
   document.getElementById("grupoConfirma").style.display = primeiraVez ? "block" : "none";
   document.getElementById("modalLogin").classList.remove("tirar");
 }
@@ -37,19 +39,24 @@ async function confirmarPin() {
       erro.textContent = "Os PINs não batem.";
       return;
     }
-    await updateDoc(ref, { pin: pin, pinDefinido: true });
+    await updateDoc(ref, { pin, pinDefinido: true });
     sessionStorage.setItem("perfilAtivo", perfilId);
     location.href = destino;
-    return;
-  }
-
-  if (pin === perfil.pin) {
+  } else if (pin === perfil.pin) {
     sessionStorage.setItem("perfilAtivo", perfilId);
     location.href = destino;
   } else {
     erro.textContent = "PIN incorreto.";
   }
 }
+
+document.getElementById("inputPin").addEventListener("keydown", function (evento) {
+  if (evento.key === "Enter") confirmarPin();
+});
+
+document.getElementById("Confirma").addEventListener("keydown", function (evento) {
+  if (evento.key === "Enter") confirmarPin();
+});
 
 window.abrirModal = abrirModal;
 window.fecharModal = fecharModal;

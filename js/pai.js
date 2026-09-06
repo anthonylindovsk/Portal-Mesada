@@ -1,4 +1,4 @@
-import { db, collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, serverTimestamp } from "./firebase-config.js";
+import { db, collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, deleteDoc, serverTimestamp } from "./firebase-config.js";
 
 const formularioTarefa = document.getElementById("tarefa");
 const nomeTarefa = document.getElementById("nome");
@@ -91,7 +91,12 @@ async function marcarComoPago(tarefaId) {
   });
 }
 
-const listaTarefas = document.getElementById("lista-tarefas");
+async function excluirTarefa(tarefaId) {
+  if (!confirm("Tem certeza que quer excluir essa tarefa? Essa ação não pode ser desfeita.")) return;
+  await deleteDoc(doc(db, "tarefas", tarefaId));
+}
+
+const listaTarefas = document.getElementById("morango2");
 const tarefasQuery = query(collection(db, "tarefas"), orderBy("dataCriacao", "desc"));
 
 onSnapshot(tarefasQuery, (snapshot) => {
@@ -107,9 +112,10 @@ onSnapshot(tarefasQuery, (snapshot) => {
     expirarSeVencida(tarefaId, tarefa);
     const valorReais = (tarefa.valorCentavos / 100).toFixed(2);
     const quem = tarefa.criancaId ? tarefa.criancaId : "Bônus — disputa aberta";
-    const botaoReabrir = tarefa.status === "perdida" ? `<button class="botao botao-reabrir">Reabrir</button>` : "";
-    const botaoCancelar = tarefa.status === "disponivel" ? `<button class="botao botao-cancelar">Cancelar</button>` : "";
-    const botaoPagar = (tarefa.status === "aprovada" && !tarefa.pago) ? `<button class="botao botao-pagar">Marcar como pago</button>` : "";
+    const botaoReabrir = tarefa.status === "perdida" ? `<button class="botao uva3">Reabrir</button>` : "";
+    const botaoCancelar = tarefa.status === "disponivel" ? `<button class="botao pera4">Cancelar</button>` : "";
+    const botaoPagar = (tarefa.status === "aprovada" && !tarefa.pago) ? `<button class="botao manga5">Marcar como pago</button>` : "";
+    const botaoExcluir = (tarefa.status === "aprovada" || tarefa.status === "perdida") ? `<button class="botao abacaxi6">×</button>` : "";
     const infoPagamento = tarefa.status === "aprovada" ? `<p>Pago: ${tarefa.pago ? "sim" : "não"}</p>` : "";
 
     const item = document.createElement("div");
@@ -123,18 +129,21 @@ onSnapshot(tarefasQuery, (snapshot) => {
       ${botaoReabrir}
       ${botaoCancelar}
       ${botaoPagar}
+      ${botaoExcluir}
     `;
-    const btnReabrir = item.querySelector(".botao-reabrir");
+    const btnReabrir = item.querySelector(".uva3");
     if (btnReabrir) btnReabrir.addEventListener("click", () => reabrirTarefa(tarefaId));
-    const btnCancelar = item.querySelector(".botao-cancelar");
+    const btnCancelar = item.querySelector(".pera4");
     if (btnCancelar) btnCancelar.addEventListener("click", () => cancelarTarefa(tarefaId));
-    const btnPagar = item.querySelector(".botao-pagar");
+    const btnPagar = item.querySelector(".manga5");
     if (btnPagar) btnPagar.addEventListener("click", () => marcarComoPago(tarefaId));
+    const btnExcluir = item.querySelector(".abacaxi6");
+    if (btnExcluir) btnExcluir.addEventListener("click", () => excluirTarefa(tarefaId));
     listaTarefas.appendChild(item);
   });
 });
 
-const listaPendentes = document.getElementById("lista-pendentes");
+const listaPendentes = document.getElementById("banana1");
 const pendentesQuery = query(collection(db, "tarefas"), where("status", "==", "aguardando_aprovacao"));
 
 onSnapshot(pendentesQuery, (snapshot) => {

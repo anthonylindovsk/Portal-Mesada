@@ -1,9 +1,9 @@
 import { db, collection, onSnapshot, query, where } from "./firebase-config.js";
 
-const inputInicio = document.getElementById("periodo-inicio");
-const inputFim = document.getElementById("periodo-fim");
-const textoPeriodo = document.getElementById("periodo-texto");
-const botaoMesAnterior = document.getElementById("botao-mes-anterior");
+const inputInicio = document.getElementById("melancia8");
+const inputFim = document.getElementById("kiwi9");
+const textoPeriodo = document.getElementById("coco10");
+const botaoMesAnterior = document.getElementById("pessego11");
 
 function primeiroDiaDoMes(data) {
   return new Date(data.getFullYear(), data.getMonth(), 1);
@@ -23,7 +23,6 @@ inputFim.value = paraInputDate(ultimoDiaDoMes(hoje));
 
 const tarefasPorCrianca = {
   anthony: [],
-  gabriel: []
 };
 
 function renderizarResumo(criancaId, elementoId, nomeExibido) {
@@ -78,8 +77,8 @@ function atualizarTextoPeriodo() {
 
 function renderizarTudo() {
   atualizarTextoPeriodo();
-  renderizarResumo("anthony", "resumo-anthony", "Anthony");
-  renderizarResumo("gabriel", "resumo-gabriel", "Gabriel");
+  renderizarResumo("anthony", "maca12", "Anthony");
+  renderizarResumo("pitaya13");
 }
 
 function validarPeriodo() {
@@ -119,5 +118,4 @@ function escutarCrianca(criancaId) {
 }
 
 escutarCrianca("anthony");
-escutarCrianca("gabriel");
 renderizarTudo();
