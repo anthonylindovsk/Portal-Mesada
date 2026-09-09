@@ -12,6 +12,7 @@
         location.href = 'index.html';
       }
     </script>
+            <div id="erro-auth"></div>
             <div class="parte1">
                 <h1>Bem Vindo</h1>
                 <h2>Adicione uma tarefa:</h2>
@@ -26,6 +27,7 @@
                     required>
                 <select id="destinatario" required>
                     <option value="anthony">Anthony</option>
+                    <option value="gabriel">Gabriel</option>
                     <option value="bonus">Tarefa bônus (quem pegar primeiro)</option>
                 </select>
                 <input type="datetime-local" id="prazo" required>
@@ -37,6 +39,13 @@
 
             <div class="parte1"><h2>Tarefas</h2></div>
             <div id="morango2" class="pfazer"></div>
+
+            <div class="parte1"><h2>Gerenciar PIN</h2></div>
+            <div class="pfazer">
+                <p>Zerar o PIN devolve a criança ao fluxo de primeiro acesso.</p>
+                <button class="botao" id="resetarPinAnthony">Resetar PIN do Anthony</button>
+                <button class="botao" id="resetarPinGabriel">Resetar PIN do Gabriel</button>
+            </div>
 
             <script type="module" src="js/auth.js"></script>
             <script type="module" src="js/pai.js"></script>

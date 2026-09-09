@@ -39,7 +39,7 @@ body {
 
 .botao {
   padding: 10px 18px;
-  min-height: 38px;
+  min-height: 44px;
   border-radius: 6px;
   border: none;
   margin: 8px;
@@ -238,6 +238,15 @@ body {
   padding: 8px;
   border-radius: 5px;
   border: none;
+}
+
+#erro-auth:not(:empty) {
+  background-color: var(--rosafraco);
+  color: var(--marromaviso);
+  border-radius: 5px;
+  padding: 8px 12px;
+  margin: 8px;
+  font-size: 13px;
 }
 
 .abacaxi6 {

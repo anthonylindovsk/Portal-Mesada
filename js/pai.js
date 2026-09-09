@@ -1,4 +1,5 @@
-import { db, collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, deleteDoc, serverTimestamp } from "./firebase-config.js";
+import { db, storage, collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, deleteDoc, serverTimestamp, ref, deleteObject } from "./firebase-config.js";
+import { formatarReais } from "./calculos.js";
 
 const formularioTarefa = document.getElementById("tarefa");
 const nomeTarefa = document.getElementById("nome");
@@ -55,7 +56,7 @@ formularioTarefa.addEventListener("submit", async function (evento) {
 });
 
 async function expirarSeVencida(tarefaId, tarefa) {
-  if (tarefa.status != "disponivel") return;
+  if (tarefa.status !== "disponivel" && tarefa.status !== "aberta") return;
   if (tarefa.prazo.toDate() < new Date()) {
     await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp() });
   }
@@ -84,15 +85,15 @@ async function cancelarTarefa(tarefaId) {
   await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp() });
 }
 
-async function marcarComoPago(tarefaId) {
-  await updateDoc(doc(db, "tarefas", tarefaId), {
-    pago: true,
-    dataPagamento: serverTimestamp()
-  });
-}
-
-async function excluirTarefa(tarefaId) {
+async function excluirTarefa(tarefaId, tarefa) {
+  if (tarefa.pago) {
+    alert("Tarefa já paga não pode ser excluída, para preservar o histórico financeiro.");
+    return;
+  }
   if (!confirm("Tem certeza que quer excluir essa tarefa? Essa ação não pode ser desfeita.")) return;
+  if (tarefa.fotoUrl) {
+    await deleteObject(ref(storage, "tarefas/" + tarefaId + "/comprovante.jpg")).catch(() => {});
+  }
   await deleteDoc(doc(db, "tarefas", tarefaId));
 }
 
@@ -110,35 +111,31 @@ onSnapshot(tarefasQuery, (snapshot) => {
     const tarefa = docSnap.data();
     const tarefaId = docSnap.id;
     expirarSeVencida(tarefaId, tarefa);
-    const valorReais = (tarefa.valorCentavos / 100).toFixed(2);
+    const valorReais = formatarReais(tarefa.valorCentavos);
     const quem = tarefa.criancaId ? tarefa.criancaId : "Bônus — disputa aberta";
     const botaoReabrir = tarefa.status === "perdida" ? `<button class="botao uva3">Reabrir</button>` : "";
     const botaoCancelar = tarefa.status === "disponivel" ? `<button class="botao pera4">Cancelar</button>` : "";
-    const botaoPagar = (tarefa.status === "aprovada" && !tarefa.pago) ? `<button class="botao manga5">Marcar como pago</button>` : "";
-    const botaoExcluir = (tarefa.status === "aprovada" || tarefa.status === "perdida") ? `<button class="botao abacaxi6">×</button>` : "";
+    const botaoExcluir = ((tarefa.status === "aprovada" || tarefa.status === "perdida") && !tarefa.pago) ? `<button class="botao abacaxi6">×</button>` : "";
     const infoPagamento = tarefa.status === "aprovada" ? `<p>Pago: ${tarefa.pago ? "sim" : "não"}</p>` : "";
 
     const item = document.createElement("div");
     item.innerHTML = `
       <h3>${tarefa.nome}</h3>
       <p>${tarefa.descricao}</p>
-      <p>Valor: R$ ${valorReais}</p>
+      <p>Valor: ${valorReais}</p>
       <p>Para: ${quem}</p>
       <p>Status: ${tarefa.status}</p>
       ${infoPagamento}
       ${botaoReabrir}
       ${botaoCancelar}
-      ${botaoPagar}
       ${botaoExcluir}
     `;
     const btnReabrir = item.querySelector(".uva3");
     if (btnReabrir) btnReabrir.addEventListener("click", () => reabrirTarefa(tarefaId));
     const btnCancelar = item.querySelector(".pera4");
     if (btnCancelar) btnCancelar.addEventListener("click", () => cancelarTarefa(tarefaId));
-    const btnPagar = item.querySelector(".manga5");
-    if (btnPagar) btnPagar.addEventListener("click", () => marcarComoPago(tarefaId));
     const btnExcluir = item.querySelector(".abacaxi6");
-    if (btnExcluir) btnExcluir.addEventListener("click", () => excluirTarefa(tarefaId));
+    if (btnExcluir) btnExcluir.addEventListener("click", () => excluirTarefa(tarefaId, tarefa));
     listaTarefas.appendChild(item);
   });
 });
@@ -156,14 +153,14 @@ onSnapshot(pendentesQuery, (snapshot) => {
   snapshot.forEach((docSnap) => {
     const tarefa = docSnap.data();
     const tarefaId = docSnap.id;
-    const valorReais = (tarefa.valorCentavos / 100).toFixed(2);
+    const valorReais = formatarReais(tarefa.valorCentavos);
     const tentativas = tarefa.tentativas || 0;
     const avisoUltima = tentativas >= 3 ? `<p class="avisottv">Última tentativa: rejeitar agora marca como perdida</p>` : "";
 
     const item = document.createElement("div");
     item.innerHTML = `
       <h3>${tarefa.nome}</h3>
-      <p>Valor: R$ ${valorReais}</p>
+      <p>Valor: ${valorReais}</p>
       <p>Tentativa: ${tentativas} de 3</p>
       ${avisoUltima}
       <p>Observação: ${tarefa.observacaoCrianca || "(nenhuma)"}</p>
@@ -189,10 +186,21 @@ async function rejeitarTarefa(tarefaId, tentativasAtuais) {
     alert("É necessário informar um motivo para rejeitar a tarefa.");
     return;
   }
-  const ref = doc(db, "tarefas", tarefaId);
+  const tarefaRef = doc(db, "tarefas", tarefaId);
+  await deleteObject(ref(storage, "tarefas/" + tarefaId + "/comprovante.jpg")).catch(() => {});
+  const camposComuns = { motivoRejeicao: motivo.trim(), observacaoCrianca: "", fotoUrl: "" };
   if (tentativasAtuais >= 3) {
-    await updateDoc(ref, { status: "perdida", motivoRejeicao: motivo.trim(), observacaoCrianca: "", dataPerda: serverTimestamp() });
+    await updateDoc(tarefaRef, { ...camposComuns, status: "perdida", dataPerda: serverTimestamp() });
   } else {
-    await updateDoc(ref, { status: "disponivel", motivoRejeicao: motivo.trim(), observacaoCrianca: "" });
+    await updateDoc(tarefaRef, { ...camposComuns, status: "disponivel" });
   }
 }
+
+async function zerarPin(perfilId) {
+  if (!confirm(`Zerar o PIN de ${perfilId}? Na próxima entrada, um novo PIN será definido.`)) return;
+  await updateDoc(doc(db, "perfis", perfilId), { pinDefinido: false, pinHash: null });
+  alert("PIN zerado.");
+}
+
+document.getElementById("resetarPinAnthony").addEventListener("click", () => zerarPin("anthony"));
+document.getElementById("resetarPinGabriel").addEventListener("click", () => zerarPin("gabriel"));

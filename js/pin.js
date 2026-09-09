@@ -3,6 +3,14 @@ import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12
 
 let perfilId, destino;
 
+async function calcularHashPin(pin, id) {
+  const bytes = new TextEncoder().encode(pin + ":" + id);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 async function abrirModal(id, pagina) {
   perfilId = id;
   destino = pagina;
@@ -39,10 +47,11 @@ async function confirmarPin() {
       erro.textContent = "Os PINs não batem.";
       return;
     }
-    await updateDoc(ref, { pin, pinDefinido: true });
+    const pinHash = await calcularHashPin(pin, perfilId);
+    await updateDoc(ref, { pinHash, pinDefinido: true });
     sessionStorage.setItem("perfilAtivo", perfilId);
     location.href = destino;
-  } else if (pin === perfil.pin) {
+  } else if ((await calcularHashPin(pin, perfilId)) === perfil.pinHash) {
     sessionStorage.setItem("perfilAtivo", perfilId);
     location.href = destino;
   } else {

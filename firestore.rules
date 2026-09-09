@@ -1,0 +1,82 @@
+rules_version = '2';
+
+// Limitação conhecida e aceita (ver CLAUDE.md e §6/Risco 7 do task.md):
+// a autenticação é anônima, então estas regras não conseguem distinguir
+// "pai" de "junior" no servidor — quem garante isso hoje é só o PIN no
+// cliente. O que dá para reforçar aqui é: (1) exigir usuário autenticado,
+// (2) validar o formato dos dados gravados, (3) impedir que o cliente
+// desfaça decisões que a regra de negócio marca como definitivas
+// (excluir tarefa paga, apagar pagamento, resetar o PIN do pai).
+
+function autenticado() {
+  return request.auth != null;
+}
+
+function criancaValida(id) {
+  return id == null || id in ['anthony', 'gabriel'];
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /perfis/{perfilId} {
+      allow get: if autenticado();
+      allow list: if false;
+      allow create: if false;
+      allow delete: if false;
+
+      // Só o fluxo de PIN pode escrever aqui, e só nesses dois campos.
+      // Ninguém consegue zerar o PIN do perfil "pai" pelo app (RN13):
+      // se o pai esquecer o PIN, a recuperação é manual pelo console.
+      allow update: if autenticado()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinHash', 'pinDefinido'])
+        && request.resource.data.pinDefinido is bool
+        && (request.resource.data.pinDefinido == false
+            ? request.resource.data.pinHash == null
+            : (request.resource.data.pinHash is string && request.resource.data.pinHash.size() == 64))
+        && !(perfilId == 'pai' && request.resource.data.pinDefinido == false);
+    }
+
+    match /tarefas/{tarefaId} {
+      allow read: if autenticado();
+
+      allow create: if autenticado()
+        && request.resource.data.nome is string
+        && request.resource.data.valorCentavos is int
+        && request.resource.data.valorCentavos > 0
+        && request.resource.data.tipoAtribuicao in ['fixa', 'bonus']
+        && criancaValida(request.resource.data.criancaId)
+        && request.resource.data.status in ['disponivel', 'aberta']
+        && request.resource.data.tentativas == 0
+        && request.resource.data.pago == false;
+
+      allow update: if autenticado()
+        && request.resource.data.valorCentavos is int
+        && request.resource.data.valorCentavos > 0
+        && request.resource.data.status in ['aberta', 'disponivel', 'aguardando_aprovacao', 'aprovada', 'perdida']
+        && criancaValida(request.resource.data.criancaId)
+        // tarefa paga é histórico financeiro: só o campo pagamentoId pode
+        // ainda mudar nela (ligação ao pagamento que a liquidou).
+        && (resource.data.pago != true
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pagamentoId']));
+
+      // Preserva o histórico financeiro (A15): tarefa paga nunca é excluída.
+      allow delete: if autenticado() && resource.data.pago != true;
+    }
+
+    match /pagamentos/{pagamentoId} {
+      allow read: if autenticado();
+
+      allow create: if autenticado()
+        && request.resource.data.criancaId in ['anthony', 'gabriel']
+        && request.resource.data.valorCentavos is int
+        && request.resource.data.valorCentavos > 0
+        && request.resource.data.tarefaIds is list
+        && request.resource.data.tarefaIds.size() > 0;
+
+      // RN08: histórico de pagamentos é permanente.
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
