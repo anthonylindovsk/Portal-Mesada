@@ -6,10 +6,11 @@ comprova a execução com foto, o pai aprova e o sistema calcula o saldo. Tem
 tarefa "bônus" (sem dono, disputada pelas duas crianças) e registro de
 pagamento com histórico permanente.
 
-O escopo completo, as regras de negócio numeradas (RN01–RN13), o backlog de
-37 atividades (A01–A37) e as premissas assumidas estão em `task.md` — é a
-fonte da verdade do projeto. Este arquivo é um atalho para não reler tudo a
-cada sessão.
+O projeto nasceu de um escopo formal (regras de negócio numeradas RN01–RN13
+e um backlog de 37 atividades A01–A37, combinado com o cliente doméstico —
+o próprio usuário). Esse documento não faz mais parte do repositório; os
+números RN/A aparecem neste arquivo só como referência interna de onde cada
+decisão veio, não como link para algo que exista aqui.
 
 ## Regra de ouro do projeto
 
@@ -36,7 +37,7 @@ iniciante não consiga acompanhar.
 
 **`tarefas/{id}`**
 - `nome`, `descricao`, `valorCentavos` (inteiro, nunca float)
-- `tipoAtribuicao`: `"fixa" | "bonus"` — **desvio do task.md**, que usa `"direcionada"`. O código já em produção usa `"fixa"`; mantive por não valer a pena migrar dados existentes por um nome. Se migrar um dia, seed roda antes do rename.
+- `tipoAtribuicao`: `"fixa" | "bonus"` — **desvio do escopo original**, que previa `"direcionada"`. O código já em produção usa `"fixa"`; mantive por não valer a pena migrar dados existentes por um nome. Se migrar um dia, seed roda antes do rename.
 - `criancaId`: `"anthony" | "gabriel" | null` (null só em bônus não aceito)
 - `prazo`, `status`, `tentativas` (int, nunca zera por rejeição — RN12), `motivoRejeicao`, `observacaoCrianca`, `fotoUrl`
 - `dataCriacao`, `dataAceite`, `dataConclusao`, `dataAprovacao`, `dataPerda` (todos `serverTimestamp()`)
@@ -89,7 +90,7 @@ aqui, não espalhada pelas telas.
 - **Ids de DOM com nome de fruta**, sem relação com o conteúdo: `banana1`, `morango2`, `melancia8`, `kiwi9`, `coco10`, `pessego11`, `maca12`, `pitaya13`, `limao7`. Isso já existia antes desta sessão; ao adicionar um elemento novo, um nome descritivo normal também serve — não é preciso inventar mais frutas.
 - Os *scripts de guarda de sessão* (`if (sessionStorage.getItem('perfilAtivo') !== 'pai') location.href = 'index.html'`) são `<script>` clássicos inline no `<head>`/topo do `<body>`, de propósito — rodam antes de qualquer módulo carregar. Não mova isso para dentro de um `type="module"`, ou o redirecionamento passa a acontecer depois do primeiro paint.
 
-## Limitação de segurança aceita (ver task.md §6, Riscos 7/8)
+## Limitação de segurança aceita
 
 Anonymous Auth não distingue **quem** está autenticado — não há como as
 `firestore.rules` saberem se a requisição vem do pai ou de uma criança. O
@@ -111,8 +112,8 @@ ajuste de regra.
 2. **Publicar `firestore.rules` e `storage.rules`** no console do Firebase (Firestore → Regras / Storage → Regras). Testar um caso positivo e um negativo antes de considerar concluído (A09).
 3. Confirmar dependência: `firestore.rules` bloqueia `create` em `perfis`, então não existe (nem faz sentido existir) um `scripts/seed.js` rodando com o SDK client-side — a carga inicial é sempre manual pelo console, como documentado no `README.md`.
 
-## Pendências conhecidas do task.md (não implementadas nesta sessão)
+## Pendências conhecidas do escopo original (não implementadas)
 
-- **A14** (editar tarefa) e **A26/A27 refinamentos visuais** de resumo (cards lado a lado) não foram feitos — funcionalidade básica de resumo existe, mas não o polimento de layout específico.
-- **A32** (revisão mobile completa) precisa de teste manual em celular real — não posso verificar isso.
-- **§12 pontos 2, 4 e 5** do task.md (limite de bônus simultâneos, retirar bônus já aceito, mostrar motivo das 3 rejeições) seguem em aberto — não foram respondidos nem implementados; não inventei resposta.
+- **Editar tarefa** e **refinamentos visuais do resumo** (cards lado a lado) não foram feitos — funcionalidade básica de resumo existe, mas não o polimento de layout específico.
+- **Revisão mobile completa** precisa de teste manual em celular real — não posso verificar isso.
+- Três perguntas do escopo original seguem em aberto e não foram respondidas nem implementadas (não inventei resposta): limite de tarefas bônus simultâneas por criança, se o `master` pode retirar uma tarefa bônus já aceita e devolvê-la à disputa, e se a criança deve ver o motivo das três rejeições quando a tarefa vira perdida por esgotar tentativas.

@@ -9,9 +9,9 @@ primeiro) e uma tela de resumo com saldo, dinheiro gerado/perdido no
 período e registro de pagamento.
 
 Sem framework, sem build step, sem bundler — HTML, CSS e JavaScript puro,
-com o SDK do Firebase importado por CDN via módulos ES. O escopo completo e
-as regras de negócio estão em [`task.md`](task.md); o guia para trabalhar no
-código está em [`CLAUDE.md`](CLAUDE.md).
+com o SDK do Firebase importado por CDN via módulos ES. O guia com modelo de
+dados, regras de negócio e convenções do projeto está em
+[`CLAUDE.md`](CLAUDE.md).
 
 **URL publicada:** _(preencher depois de habilitar o GitHub Pages)_
 
