@@ -24,7 +24,7 @@ iniciante não consiga acompanhar.
 ## Stack
 
 - **Firestore**: dados (`perfis`, `tarefas`, `pagamentos`).
-- **Storage**: uma foto de comprovação por tarefa (`tarefas/{tarefaId}/comprovante.jpg`).
+- **Storage**: até 5 anexos de comprovação por tarefa, foto (máx. 5MB) ou vídeo (máx. 15MB) — `tarefas/{tarefaId}/anexos/{indice}.{ext}`. Tarefas antigas podem ter um único `tarefas/{tarefaId}/comprovante.jpg` legado (ver campo `fotoUrl` abaixo).
 - **Anonymous Auth**: só para as regras de segurança exigirem `request.auth != null`. Ver limitação abaixo.
 - **Hospedagem**: GitHub Pages — todo caminho de arquivo é relativo.
 
@@ -39,7 +39,8 @@ iniciante não consiga acompanhar.
 - `nome`, `descricao`, `valorCentavos` (inteiro, nunca float)
 - `tipoAtribuicao`: `"fixa" | "bonus"` — **desvio do escopo original**, que previa `"direcionada"`. O código já em produção usa `"fixa"`; mantive por não valer a pena migrar dados existentes por um nome. Se migrar um dia, seed roda antes do rename.
 - `criancaId`: `"anthony" | "gabriel" | null` (null só em bônus não aceito)
-- `prazo`, `status`, `tentativas` (int, nunca zera por rejeição — RN12), `motivoRejeicao`, `observacaoCrianca`, `fotoUrl`
+- `prazo`, `status`, `tentativas` (int, nunca zera por rejeição — RN12), `motivoRejeicao`, `observacaoCrianca`
+- `anexos`: array de até 5 `{url, tipo: "imagem" | "video", nome}`, gravado por `js/crianca.js` (`concluirTarefa`). Substituiu o campo `fotoUrl` (string única, um só arquivo) usado antes desta sessão — `fotoUrl` ainda pode existir em tarefas antigas e `js/pai.js` (`htmlAnexos`) sabe exibir esse formato legado como fallback quando `anexos` não existe. Rejeição/exclusão de tarefa apaga a pasta `tarefas/{tarefaId}/anexos/` inteira via `listAll` (não só um arquivo fixo).
 - `dataCriacao`, `dataAceite`, `dataConclusao`, `dataAprovacao`, `dataPerda` (todos `serverTimestamp()`)
 - `pago` (bool), `pagamentoId`
 - `pago` só é marcado `true` pelo fluxo de pagamento em `resumoa26.js` (`registrarPagamento`, grava `pagamentos` + `writeBatch`). Não existe mais um botão "marcar como pago" avulso em `pai.js` — havia um antes desta sessão e foi removido porque marcava `pago=true` sem criar o documento em `pagamentos`, violando a RN08 (todo pagamento tem que deixar rastro no histórico).

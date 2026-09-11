@@ -1,8 +1,17 @@
-import { db, storage, collection, onSnapshot, query, where, doc, updateDoc, deleteDoc, serverTimestamp, runTransaction, ref, uploadBytesResumable, getDownloadURL } from "./firebase-config.js";
+import { db, storage, collection, onSnapshot, query, where, doc, updateDoc, deleteDoc, serverTimestamp, runTransaction, ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "./firebase-config.js";
 import { saldoDisponivelCentavos, formatarReais } from "./calculos.js";
 
 const TAMANHO_MAXIMO_PX = 1280;
 const TAMANHO_ALVO_BYTES = 500 * 1024;
+const MAX_ANEXOS = 5;
+const TAMANHO_MAXIMO_VIDEO_BYTES = 15 * 1024 * 1024;
+
+async function apagarAnexos(tarefaId) {
+  const pasta = ref(storage, "tarefas/" + tarefaId + "/anexos");
+  const lista = await listAll(pasta).catch(() => null);
+  if (!lista) return;
+  await Promise.all(lista.items.map((item) => deleteObject(item).catch(() => {})));
+}
 
 async function comprimirImagem(arquivo) {
   const bitmap = await createImageBitmap(arquivo, { imageOrientation: "from-image" });
@@ -77,7 +86,8 @@ onSnapshot(tarefasQuery, (snapshot) => {
         <p>Tentativas restantes: ${tentativasRestantes}</p>
         ${avisoRejeicao}
         <textarea placeholder="Observação (opcional)" id="obs-${tarefaId}"></textarea>
-        <input type="file" id="arquivo-${tarefaId}" accept="image/*">
+        <input type="file" id="arquivo-${tarefaId}" accept="image/*,video/*" multiple>
+        <p class="dica">Até 5 anexos (fotos ou vídeos de até 15MB)</p>
         <p id="progresso-${tarefaId}"></p>
         <button class="botao">Concluir tarefa</button>
       `;
@@ -123,44 +133,70 @@ onSnapshot(tarefasQuery, (snapshot) => {
 
 async function concluirTarefa(tarefaId, tentativasAtuais) {
   const observacao = document.getElementById("obs-" + tarefaId).value;
-  const arquivo = document.getElementById("arquivo-" + tarefaId).files[0];
+  const arquivos = Array.from(document.getElementById("arquivo-" + tarefaId).files);
   const progresso = document.getElementById("progresso-" + tarefaId);
 
-  if (!arquivo || !arquivo.type.startsWith("image/")) {
-    alert("Anexe uma foto.");
+  if (arquivos.length === 0) {
+    alert("Anexe ao menos uma foto ou vídeo.");
     return;
+  }
+  if (arquivos.length > MAX_ANEXOS) {
+    alert("No máximo " + MAX_ANEXOS + " anexos por tarefa.");
+    return;
+  }
+  for (const arquivo of arquivos) {
+    const ehVideo = arquivo.type.startsWith("video/");
+    if (!arquivo.type.startsWith("image/") && !ehVideo) {
+      alert("Cada anexo precisa ser uma foto ou um vídeo.");
+      return;
+    }
+    if (ehVideo && arquivo.size > TAMANHO_MAXIMO_VIDEO_BYTES) {
+      alert("Vídeo muito grande: no máximo 15MB.");
+      return;
+    }
   }
 
   try {
-    progresso.textContent = "Preparando foto...";
-    const imagemComprimida = await comprimirImagem(arquivo);
+    await apagarAnexos(tarefaId);
+    const anexos = [];
 
-    const arquivoRef = ref(storage, "tarefas/" + tarefaId + "/comprovante.jpg");
-    const envio = uploadBytesResumable(arquivoRef, imagemComprimida, { contentType: "image/jpeg" });
+    for (let indice = 0; indice < arquivos.length; indice++) {
+      const arquivo = arquivos[indice];
+      const ehVideo = arquivo.type.startsWith("video/");
+      progresso.textContent = "Preparando anexo " + (indice + 1) + " de " + arquivos.length + "...";
 
-    const url = await new Promise((resolve, reject) => {
-      envio.on(
-        "state_changed",
-        (snapshot) => {
-          const percentual = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          progresso.textContent = "Enviando... " + percentual + "%";
-        },
-        reject,
-        async () => resolve(await getDownloadURL(arquivoRef))
-      );
-    });
+      const conteudo = ehVideo ? arquivo : await comprimirImagem(arquivo);
+      const contentType = ehVideo ? arquivo.type : "image/jpeg";
+      const extensao = ehVideo ? (arquivo.name.split(".").pop() || "mp4") : "jpg";
+      const arquivoRef = ref(storage, "tarefas/" + tarefaId + "/anexos/" + indice + "." + extensao);
+      const envio = uploadBytesResumable(arquivoRef, conteudo, { contentType });
+
+      const url = await new Promise((resolve, reject) => {
+        envio.on(
+          "state_changed",
+          (snapshot) => {
+            const percentual = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            progresso.textContent = "Enviando anexo " + (indice + 1) + " de " + arquivos.length + "... " + percentual + "%";
+          },
+          reject,
+          async () => resolve(await getDownloadURL(arquivoRef))
+        );
+      });
+
+      anexos.push({ url, tipo: ehVideo ? "video" : "imagem", nome: arquivo.name });
+    }
 
     await updateDoc(doc(db, "tarefas", tarefaId), {
       status: "aguardando_aprovacao",
       observacaoCrianca: observacao,
       motivoRejeicao: "",
       tentativas: tentativasAtuais + 1,
-      fotoUrl: url,
+      anexos: anexos,
     });
   } catch (erro) {
     console.error(erro);
     progresso.textContent = "";
-    alert("Não foi possível enviar a foto. Tente novamente.");
+    alert("Não foi possível enviar os anexos. Tente novamente.");
   }
 }
 

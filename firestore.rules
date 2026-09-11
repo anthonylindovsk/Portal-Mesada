@@ -55,6 +55,9 @@ service cloud.firestore {
         && request.resource.data.valorCentavos > 0
         && request.resource.data.status in ['aberta', 'disponivel', 'aguardando_aprovacao', 'aprovada', 'perdida']
         && criancaValida(request.resource.data.criancaId)
+        // anexos de comprovação: no máximo 5 por tarefa.
+        && (!('anexos' in request.resource.data)
+            || (request.resource.data.anexos is list && request.resource.data.anexos.size() <= 5))
         // tarefa paga é histórico financeiro: só o campo pagamentoId pode
         // ainda mudar nela (ligação ao pagamento que a liquidou).
         && (resource.data.pago != true

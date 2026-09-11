@@ -1,5 +1,25 @@
-import { db, storage, collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, deleteDoc, serverTimestamp, ref, deleteObject } from "./firebase-config.js";
+import { db, storage, collection, addDoc, Timestamp, onSnapshot, query, orderBy, where, doc, updateDoc, deleteDoc, serverTimestamp, ref, deleteObject, listAll } from "./firebase-config.js";
 import { formatarReais } from "./calculos.js";
+
+async function apagarAnexos(tarefaId) {
+  const pasta = ref(storage, "tarefas/" + tarefaId + "/anexos");
+  const lista = await listAll(pasta).catch(() => null);
+  if (!lista) return;
+  await Promise.all(lista.items.map((item) => deleteObject(item).catch(() => {})));
+}
+
+function htmlAnexos(tarefa) {
+  const anexos = tarefa.anexos && tarefa.anexos.length > 0
+    ? tarefa.anexos
+    : (tarefa.fotoUrl ? [{ url: tarefa.fotoUrl, tipo: "imagem" }] : []);
+
+  if (anexos.length === 0) return "<p>Sem anexo.</p>";
+
+  return anexos.map((anexo, indice) => {
+    const rotulo = anexo.tipo === "video" ? "Ver vídeo" : "Ver foto";
+    return `<p><a href="${anexo.url}" target="_blank">${rotulo} ${indice + 1}</a></p>`;
+  }).join("");
+}
 
 const formularioTarefa = document.getElementById("tarefa");
 const nomeTarefa = document.getElementById("nome");
@@ -91,6 +111,7 @@ async function excluirTarefa(tarefaId, tarefa) {
     return;
   }
   if (!confirm("Tem certeza que quer excluir essa tarefa? Essa ação não pode ser desfeita.")) return;
+  await apagarAnexos(tarefaId);
   if (tarefa.fotoUrl) {
     await deleteObject(ref(storage, "tarefas/" + tarefaId + "/comprovante.jpg")).catch(() => {});
   }
@@ -164,7 +185,7 @@ onSnapshot(pendentesQuery, (snapshot) => {
       <p>Tentativa: ${tentativas} de 3</p>
       ${avisoUltima}
       <p>Observação: ${tarefa.observacaoCrianca || "(nenhuma)"}</p>
-      <a href="${tarefa.fotoUrl}" target="_blank">Ver comprovante</a>
+      ${htmlAnexos(tarefa)}
       <button class="botao">Aprovar</button>
       <button class="botao">Rejeitar</button>
     `;
@@ -187,8 +208,9 @@ async function rejeitarTarefa(tarefaId, tentativasAtuais) {
     return;
   }
   const tarefaRef = doc(db, "tarefas", tarefaId);
+  await apagarAnexos(tarefaId);
   await deleteObject(ref(storage, "tarefas/" + tarefaId + "/comprovante.jpg")).catch(() => {});
-  const camposComuns = { motivoRejeicao: motivo.trim(), observacaoCrianca: "", fotoUrl: "" };
+  const camposComuns = { motivoRejeicao: motivo.trim(), observacaoCrianca: "", anexos: [], fotoUrl: "" };
   if (tentativasAtuais >= 3) {
     await updateDoc(tarefaRef, { ...camposComuns, status: "perdida", dataPerda: serverTimestamp() });
   } else {

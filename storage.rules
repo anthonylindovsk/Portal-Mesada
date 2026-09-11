@@ -2,12 +2,24 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Comprovante de conclusão de tarefa (A18): tarefas/{tarefaId}/comprovante.jpg
-    match /tarefas/{tarefaId}/{arquivo} {
+    // Comprovante legado de tarefas antigas (antes dos anexos múltiplos): tarefas/{tarefaId}/comprovante.jpg
+    match /tarefas/{tarefaId}/comprovante.jpg {
       allow read: if request.auth != null;
       allow write: if request.auth != null
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
+    // Anexos de conclusão de tarefa (A18): até 5 por tarefa, foto ou vídeo.
+    // tarefas/{tarefaId}/anexos/{arquivo}
+    match /tarefas/{tarefaId}/anexos/{arquivo} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && (
+          (request.resource.contentType.matches('image/.*') && request.resource.size < 5 * 1024 * 1024)
+          || (request.resource.contentType.matches('video/.*') && request.resource.size < 15 * 1024 * 1024)
+        );
       allow delete: if request.auth != null;
     }
   }
