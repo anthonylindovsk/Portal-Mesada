@@ -255,6 +255,7 @@ onSnapshot(pendentesQuery, (snapshot) => {
     const valorReais = formatarReais(tarefa.valorCentavos);
     const tentativas = tarefa.tentativas || 0;
     const avisoUltima = tentativas >= 3 ? `<p class="avisottv">Última tentativa: rejeitar agora marca como perdida</p>` : "";
+    const dataConclusao = tarefa.dataConclusao ? `<p>Concluída em: ${tarefa.dataConclusao.toDate().toLocaleString("pt-BR")}</p>` : "";
 
     const item = document.createElement("div");
     item.innerHTML = `
@@ -263,6 +264,7 @@ onSnapshot(pendentesQuery, (snapshot) => {
       <p>Tentativa: ${tentativas} de 3</p>
       ${avisoUltima}
       <p>Observação: ${tarefa.observacaoCrianca || "(nenhuma)"}</p>
+      ${dataConclusao}
       ${htmlAnexos(tarefa)}
       <button class="botao">Aprovar</button>
       <button class="botao">Rejeitar</button>

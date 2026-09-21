@@ -47,6 +47,14 @@ const listaBonus = document.getElementById("bonus");
 const saldoElemento = document.querySelector(".saldo");
 const tarefasQuery = query(collection(db, "tarefas"), where("criancaId", "==", criancaId));
 
+// Tarefa só fica visível pra criança a partir das 00h do dia do prazo,
+// mesmo tendo sido criada antes — evita "spoiler" de tarefas futuras em lote.
+function tarefaVisivelHoje(tarefa) {
+  const prazoData = tarefa.prazo.toDate();
+  const inicioDoDiaPrazo = new Date(prazoData.getFullYear(), prazoData.getMonth(), prazoData.getDate());
+  return new Date() >= inicioDoDiaPrazo;
+}
+
 async function expirarSeVencida(tarefaId, tarefa) {
   if (tarefa.status !== "disponivel" && tarefa.status !== "aberta") return;
   if (tarefa.prazo.toDate() < new Date()) {
@@ -116,6 +124,7 @@ onSnapshot(tarefasQuery, (snapshot) => {
   snapshot.forEach((docSnap) => {
     const tarefa = docSnap.data();
     const tarefaId = docSnap.id;
+    if (tarefa.status === "disponivel" && !tarefaVisivelHoje(tarefa)) return;
     expirarSeVencida(tarefaId, tarefa);
     const valorReais = formatarReais(tarefa.valorCentavos);
     const item = document.createElement('div');
@@ -159,7 +168,10 @@ onSnapshot(tarefasQuery, (snapshot) => {
       temConcluidas = true;
     } else if (tarefa.status === "perdida") {
       const motivo = tarefa.motivoRejeicao ? `<p>Motivo: ${tarefa.motivoRejeicao}</p>` : "";
-      const podeAbrirChamado = !tarefa.chamadoId && ["rejeicao", "expiracao"].includes(tarefa.causaPerda);
+      // tarefas perdidas antes do campo causaPerda existir não têm esse campo
+      // gravado (undefined) — tratamos como elegível a chamado, já que a
+      // única causa que de fato bloqueia recurso é cancelamento manual.
+      const podeAbrirChamado = !tarefa.chamadoId && tarefa.causaPerda !== "cancelamento";
       const botaoChamado = podeAbrirChamado ? `<button class="botao morango-chamado">Abrir chamado</button>` : "";
       item.innerHTML = `
         <h4>${tarefa.nome}</h4>
@@ -276,6 +288,7 @@ async function concluirTarefa(tarefaId, tentativasAtuais) {
       motivoRejeicao: "",
       tentativas: tentativasAtuais + 1,
       anexos: anexos,
+      dataConclusao: serverTimestamp(),
     });
   } catch (erro) {
     console.error(erro);
@@ -288,15 +301,13 @@ const bonusQuery = query(collection(db, "tarefas"), where("tipoAtribuicao", "=="
 
 onSnapshot(bonusQuery, (snapshot) => {
   listaBonus.innerHTML = "<h3>Tarefas bônus disponíveis</h3>";
-
-  if (snapshot.empty) {
-    listaBonus.innerHTML += "<p>Nenhuma tarefa bônus agora.</p>";
-    return;
-  }
+  var temBonus = false;
 
   snapshot.forEach((docSnap) => {
     const tarefa = docSnap.data();
     const tarefaId = docSnap.id;
+    if (!tarefaVisivelHoje(tarefa)) return;
+    temBonus = true;
     expirarSeVencida(tarefaId, tarefa);
     const valorReais = formatarReais(tarefa.valorCentavos);
 
@@ -310,6 +321,8 @@ onSnapshot(bonusQuery, (snapshot) => {
     item.querySelector("button").addEventListener("click", () => aceitarBonus(tarefaId));
     listaBonus.appendChild(item);
   });
+
+  if (!temBonus) listaBonus.innerHTML += "<p>Nenhuma tarefa bônus agora.</p>";
 });
 
 async function aceitarBonus(tarefaId) {
