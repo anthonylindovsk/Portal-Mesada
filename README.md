@@ -39,7 +39,7 @@ E acesse `http://localhost:8000`.
 
 ## Carga inicial dos perfis
 
-Os três perfis são fixos e não têm tela de cadastro — são criados
+Os quatro perfis são fixos e não têm tela de cadastro — são criados
 manualmente na coleção `perfis` do Firestore, pelo console:
 
 | Documento (id) | `nome` | `tipo` | `pinDefinido` |
@@ -47,11 +47,33 @@ manualmente na coleção `perfis` do Firestore, pelo console:
 | `pai` | Pai | `master` | `false` |
 | `anthony` | Anthony | `junior` | `false` |
 | `gabriel` | Gabriel | `junior` | `false` |
+| `avaliador` | Avaliador | `avaliador` | `false` |
 
 Não preencher `pinHash` na carga inicial — cada perfil define o próprio PIN
 de 4 dígitos no primeiro acesso pelo app (dois cliques: digitar e
 confirmar). `avatarCor` é opcional, usado só se a UI vier a exibir cor por
 perfil.
+
+### Passo a passo — criar o documento do avaliador
+
+Os perfis `pai`, `anthony` e `gabriel` já existem. Falta só o `avaliador`
+(mesmo passo a passo usado para criar o `gabriel`, só troca o id e o
+`tipo`):
+
+1. Abra o [console do Firebase](https://console.firebase.google.com) e entre no projeto `portal-mesada`.
+2. No menu à esquerda, **Build → Firestore Database**.
+3. Na lista de coleções, clique em **`perfis`**.
+4. Clique em **"+ Adicionar documento"** (Add document).
+5. Em **"ID do documento"**, digite exatamente `avaliador` (minúsculo, sem acento) — não deixe no automático.
+6. Adicione os campos, um de cada vez, clicando em **"+ Adicionar campo"**:
+   - `nome` — tipo `string` — valor `Avaliador`
+   - `tipo` — tipo `string` — valor `avaliador`
+   - `pinDefinido` — tipo `boolean` — valor `false`
+   - `avatarCor` — tipo `string` — valor à sua escolha (ex.: `#2196f3`) — opcional, pode pular
+7. **Não** crie o campo `pinHash` agora — ele é gravado sozinho pelo app quando o avaliador definir o PIN dele pela primeira vez.
+8. Clique em **Salvar**.
+
+Para conferir: abra o portal, clique em "Avaliador" — deve aparecer a tela de criar PIN (dois campos), não a de digitar PIN.
 
 ### Passo a passo — criar o documento do Gabriel
 
@@ -105,7 +127,7 @@ O PIN nunca é gravado em texto puro. `js/pin.js` calcula
 resultado em `pinHash`. No primeiro acesso o perfil pede o PIN duas vezes
 (criação); nos acessos seguintes, pede uma vez e compara o hash.
 
-- **Resetar o PIN de uma criança**: o pai faz login e, no painel (`pai.html`), usa os botões "Resetar PIN do Anthony" / "Resetar PIN do Gabriel". Isso zera `pinHash` e devolve o perfil ao fluxo de primeiro acesso.
+- **Resetar o PIN de uma criança ou do avaliador**: o pai faz login e, no painel (`pai.html`), usa os botões "Resetar PIN do Anthony" / "Resetar PIN do Gabriel" / "Resetar PIN do Avaliador". Isso zera `pinHash` e devolve o perfil ao fluxo de primeiro acesso.
 - **O pai esqueceu o próprio PIN**: não tem reset pelo app (nenhum perfil pode zerar o PIN do `pai`, de propósito). Recuperação é manual: no console do Firebase, editar o documento `perfis/pai` e apagar o campo `pinHash` e marcar `pinDefinido: false`. No próximo acesso, o app pede para definir um PIN novo.
 
 ## Publicando no GitHub Pages

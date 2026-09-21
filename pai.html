@@ -34,17 +34,42 @@
                 <button type="submit" class="botao">Criar tarefa</button>
             </form>
 
+            <div class="parte1"><h2>Criar várias tarefas (dias diferentes)</h2></div>
+            <p>A mesma tarefa, repetida em datas diferentes, para um ou os dois. Não vale para tarefa bônus.</p>
+            <form id="tarefaLote" class="tarefa">
+                <input type="text" id="loteNome" placeholder="Nome da tarefa"
+                    required>
+                <textarea id="loteDescricao"
+                    placeholder="Descrição (opcional)"></textarea>
+                <input type="number" id="loteValor" placeholder="Valor (R$)" min="0"
+                    required>
+                <label><input type="checkbox" id="loteAnthony" value="anthony"> Anthony</label>
+                <label><input type="checkbox" id="loteGabriel" value="gabriel"> Gabriel</label>
+                <div id="lotePrazos">
+                    <input type="datetime-local" class="lotePrazo" required>
+                </div>
+                <button type="button" id="loteAdicionarDia" class="botao">+ Adicionar outro dia</button>
+                <button type="submit" class="botao">Criar tarefas</button>
+            </form>
+
             <div class="parte1"><h2>Aguardando aprovação</h2></div>
             <div id="banana1" class="pfazer"></div>
 
             <div class="parte1"><h2>Tarefas</h2></div>
             <div id="morango2" class="pfazer"></div>
 
+            <div class="parte1"><h2>Chamados</h2></div>
+            <div class="pfazer">
+                <p>Tarefas perdidas em recurso, aguardando o avaliador.</p>
+                <a class="botao" href="chamados.html">Ver chamados</a>
+            </div>
+
             <div class="parte1"><h2>Gerenciar PIN</h2></div>
             <div class="pfazer">
-                <p>Zerar o PIN devolve a criança ao fluxo de primeiro acesso.</p>
+                <p>Zerar o PIN devolve a pessoa ao fluxo de primeiro acesso.</p>
                 <button class="botao" id="resetarPinAnthony">Resetar PIN do Anthony</button>
                 <button class="botao" id="resetarPinGabriel">Resetar PIN do Gabriel</button>
+                <button class="botao" id="resetarPinAvaliador">Resetar PIN do Avaliador</button>
             </div>
 
             <script type="module" src="js/auth.js"></script>

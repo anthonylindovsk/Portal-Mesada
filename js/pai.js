@@ -21,6 +21,21 @@ function htmlAnexos(tarefa) {
   }).join("");
 }
 
+async function criarTarefaDoc({ nome, descricao, valorCentavos, tipoAtribuicao, criancaId, prazo, status }) {
+  return addDoc(collection(db, "tarefas"), {
+    nome,
+    descricao,
+    valorCentavos,
+    tipoAtribuicao,
+    criancaId,
+    prazo: Timestamp.fromDate(prazo),
+    status,
+    tentativas: 0,
+    pago: false,
+    dataCriacao: serverTimestamp(),
+  });
+}
+
 const formularioTarefa = document.getElementById("tarefa");
 const nomeTarefa = document.getElementById("nome");
 const descricaoTarefa = document.getElementById("descricao");
@@ -53,17 +68,14 @@ formularioTarefa.addEventListener("submit", async function (evento) {
   const ehBonus = destinatario === "bonus";
 
   try {
-    const docRef = await addDoc(collection(db, "tarefas"), {
+    const docRef = await criarTarefaDoc({
       nome: nomeTarefa.value,
       descricao: descricaoTarefa.value,
       valorCentavos: valorEmCentavos,
       tipoAtribuicao: ehBonus ? "bonus" : "fixa",
       criancaId: ehBonus ? null : destinatario,
-      prazo: Timestamp.fromDate(new Date(prazoTarefa.value)),
+      prazo: new Date(prazoTarefa.value),
       status: ehBonus ? "aberta" : "disponivel",
-      tentativas: 0,
-      pago: false,
-      dataCriacao: serverTimestamp(),
     });
     console.log("tarefa criada: " + docRef.id);
     formularioTarefa.reset();
@@ -75,10 +87,74 @@ formularioTarefa.addEventListener("submit", async function (evento) {
   }
 });
 
+const formularioLote = document.getElementById("tarefaLote");
+const loteNome = document.getElementById("loteNome");
+const loteDescricao = document.getElementById("loteDescricao");
+const loteValor = document.getElementById("loteValor");
+const loteAnthony = document.getElementById("loteAnthony");
+const loteGabriel = document.getElementById("loteGabriel");
+const lotePrazos = document.getElementById("lotePrazos");
+const loteAdicionarDia = document.getElementById("loteAdicionarDia");
+
+function criarInputPrazoLote() {
+  const input = document.createElement("input");
+  input.type = "datetime-local";
+  input.className = "lotePrazo";
+  input.required = true;
+  return input;
+}
+
+loteAdicionarDia.addEventListener("click", () => {
+  lotePrazos.appendChild(criarInputPrazoLote());
+});
+
+formularioLote.addEventListener("submit", async function (evento) {
+  evento.preventDefault();
+
+  const destinatarios = [];
+  if (loteAnthony.checked) destinatarios.push("anthony");
+  if (loteGabriel.checked) destinatarios.push("gabriel");
+  if (destinatarios.length === 0) {
+    alert("Escolha pelo menos um destinatário (Anthony e/ou Gabriel).");
+    return;
+  }
+
+  const prazos = Array.from(lotePrazos.querySelectorAll(".lotePrazo")).map((input) => new Date(input.value));
+  if (prazos.length === 0 || prazos.some((data) => isNaN(data.getTime()) || data < new Date())) {
+    alert("Todos os prazos precisam ser datas válidas no futuro.");
+    return;
+  }
+
+  const valorEmCentavos = Math.round(Number(loteValor.value) * 100);
+
+  try {
+    for (const criancaId of destinatarios) {
+      for (const prazo of prazos) {
+        await criarTarefaDoc({
+          nome: loteNome.value,
+          descricao: loteDescricao.value,
+          valorCentavos: valorEmCentavos,
+          tipoAtribuicao: "fixa",
+          criancaId,
+          prazo,
+          status: "disponivel",
+        });
+      }
+    }
+    alert(`${destinatarios.length * prazos.length} tarefa(s) criada(s).`);
+    formularioLote.reset();
+    lotePrazos.innerHTML = "";
+    lotePrazos.appendChild(criarInputPrazoLote());
+  } catch (erro) {
+    console.log("deu erro ao criar tarefas em lote", erro);
+    alert("Deu erro ao criar as tarefas. Veja o console.");
+  }
+});
+
 async function expirarSeVencida(tarefaId, tarefa) {
   if (tarefa.status !== "disponivel" && tarefa.status !== "aberta") return;
   if (tarefa.prazo.toDate() < new Date()) {
-    await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp() });
+    await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp(), causaPerda: "expiracao" });
   }
 }
 
@@ -97,12 +173,14 @@ async function reabrirTarefa(tarefaId) {
     prazo: Timestamp.fromDate(novoPrazo),
     dataPerda: null,
     tentativas: 0,
+    causaPerda: null,
+    chamadoId: null,
   });
 }
 
 async function cancelarTarefa(tarefaId) {
   if (!confirm("Tem certeza que quer cancelar essa tarefa? Ela vai virar perdida.")) return;
-  await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp() });
+  await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp(), causaPerda: "cancelamento" });
 }
 
 async function excluirTarefa(tarefaId, tarefa) {
@@ -212,7 +290,7 @@ async function rejeitarTarefa(tarefaId, tentativasAtuais) {
   await deleteObject(ref(storage, "tarefas/" + tarefaId + "/comprovante.jpg")).catch(() => {});
   const camposComuns = { motivoRejeicao: motivo.trim(), observacaoCrianca: "", anexos: [], fotoUrl: "" };
   if (tentativasAtuais >= 3) {
-    await updateDoc(tarefaRef, { ...camposComuns, status: "perdida", dataPerda: serverTimestamp() });
+    await updateDoc(tarefaRef, { ...camposComuns, status: "perdida", dataPerda: serverTimestamp(), causaPerda: "rejeicao" });
   } else {
     await updateDoc(tarefaRef, { ...camposComuns, status: "disponivel" });
   }
@@ -226,3 +304,4 @@ async function zerarPin(perfilId) {
 
 document.getElementById("resetarPinAnthony").addEventListener("click", () => zerarPin("anthony"));
 document.getElementById("resetarPinGabriel").addEventListener("click", () => zerarPin("gabriel"));
+document.getElementById("resetarPinAvaliador").addEventListener("click", () => zerarPin("avaliador"));

@@ -53,11 +53,16 @@ service cloud.firestore {
       allow update: if autenticado()
         && request.resource.data.valorCentavos is int
         && request.resource.data.valorCentavos > 0
-        && request.resource.data.status in ['aberta', 'disponivel', 'aguardando_aprovacao', 'aprovada', 'perdida']
+        && request.resource.data.status in ['aberta', 'disponivel', 'aguardando_aprovacao', 'aprovada', 'perdida', 'em_recurso']
         && criancaValida(request.resource.data.criancaId)
         // anexos de comprovação: no máximo 5 por tarefa.
         && (!('anexos' in request.resource.data)
             || (request.resource.data.anexos is list && request.resource.data.anexos.size() <= 5))
+        // causaPerda identifica por que a tarefa virou "perdida" — usado
+        // para decidir se cabe abrir um chamado (RN de recurso).
+        && (!('causaPerda' in request.resource.data)
+            || request.resource.data.causaPerda == null
+            || request.resource.data.causaPerda in ['rejeicao', 'expiracao', 'cancelamento'])
         // tarefa paga é histórico financeiro: só o campo pagamentoId pode
         // ainda mudar nela (ligação ao pagamento que a liquidou).
         && (resource.data.pago != true
@@ -80,6 +85,40 @@ service cloud.firestore {
       // RN08: histórico de pagamentos é permanente.
       allow update: if false;
       allow delete: if false;
+    }
+
+    // Recurso de tarefa perdida: o junior abre um chamado pedindo
+    // intervenção do avaliador. Nenhuma regra aqui finge checar "é o
+    // avaliador" — essa distinção é só client-side, mesma limitação de
+    // sempre (ver comentário de topo deste arquivo).
+    match /chamados/{chamadoId} {
+      allow read: if autenticado();
+
+      allow create: if autenticado()
+        && request.resource.data.tarefaId is string
+        && request.resource.data.criancaId in ['anthony', 'gabriel']
+        && request.resource.data.status == 'aberto';
+
+      // Só permite resolver (aberto -> aprovado|negado), uma via só.
+      allow update: if autenticado()
+        && resource.data.status == 'aberto'
+        && request.resource.data.status in ['aprovado', 'negado'];
+
+      // Histórico permanente, igual pagamentos.
+      allow delete: if false;
+
+      match /mensagens/{mensagemId} {
+        allow read: if autenticado();
+
+        allow create: if autenticado()
+          && request.resource.data.autor in ['anthony', 'gabriel', 'pai', 'avaliador']
+          && request.resource.data.texto is string
+          && request.resource.data.texto.size() > 0;
+
+        // Thread imutável: mensagem não é editada nem apagada.
+        allow update: if false;
+        allow delete: if false;
+      }
     }
   }
 }

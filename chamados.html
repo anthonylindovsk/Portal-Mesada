@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Chamados</title>
+        <link rel="stylesheet" href="css/style.css">
+    </head>
+    <body>
+        <script>
+      if (!['pai', 'avaliador'].includes(sessionStorage.getItem('perfilAtivo'))) {
+        location.href = 'index.html';
+      }
+    </script>
+        <div id="erro-auth"></div>
+        <div class="parte1">
+            <h1>Chamados</h1>
+            <h2>Tarefas perdidas em recurso</h2>
+        </div>
+
+        <div class="parte1"><h2>Abertos</h2></div>
+        <div id="chamadosAbertos" class="pfazer"></div>
+
+        <div class="parte1"><h2>Resolvidos</h2></div>
+        <div id="chamadosResolvidos" class="pfazer"></div>
+
+        <script type="module" src="js/auth.js"></script>
+        <script type="module" src="js/chamados.js"></script>
+    </body>
+</html>

@@ -1,4 +1,4 @@
-import { db, collection, onSnapshot, query, where, doc, writeBatch, serverTimestamp } from "./firebase-config.js";
+import { db, collection, onSnapshot, query, where, doc, writeBatch, serverTimestamp, Timestamp } from "./firebase-config.js";
 import {
   saldoDisponivelCentavos,
   dinheiroGeradoCentavos,
@@ -112,12 +112,59 @@ async function registrarPagamento(criancaId) {
     dataPagamento: serverTimestamp(),
     tarefaIds: tarefasAPagar.map((tarefa) => tarefa.id),
     observacao: "",
+    tipoPagamento: "manual",
   });
   tarefasAPagar.forEach((tarefa) => {
     lote.update(doc(db, "tarefas", tarefa.id), { pago: true, pagamentoId: pagamentoRef.id });
   });
   await lote.commit();
 }
+
+async function fecharPeriodo() {
+  const inicio = new Date(inputInicio.value + "T00:00:00");
+  const fim = new Date(inputFim.value + "T23:59:59");
+
+  const porCrianca = criancas
+    .map((criancaId) => {
+      const tarefasAPagar = tarefasPorCrianca[criancaId].filter((tarefa) => tarefa.status === "aprovada" && !tarefa.pago);
+      const valorTotal = saldoDisponivelCentavos(tarefasPorCrianca[criancaId]);
+      return { criancaId, tarefasAPagar, valorTotal };
+    })
+    .filter((item) => item.valorTotal > 0);
+
+  if (porCrianca.length === 0) {
+    alert("Não há saldo disponível para fechar em nenhuma das duas crianças.");
+    return;
+  }
+
+  const resumoTexto = porCrianca.map((item) => `- ${nomesExibidos[item.criancaId]}: ${formatarReais(item.valorTotal)}`).join("\n");
+  const confirmado = confirm(
+    `Fechar o período e zerar o saldo de:\n\n${resumoTexto}\n\nEssa ação cria um pagamento para cada criança e não pode ser desfeita.`
+  );
+  if (!confirmado) return;
+
+  const lote = writeBatch(db);
+  porCrianca.forEach((item) => {
+    const pagamentoRef = doc(collection(db, "pagamentos"));
+    lote.set(pagamentoRef, {
+      criancaId: item.criancaId,
+      valorCentavos: item.valorTotal,
+      dataPagamento: serverTimestamp(),
+      tarefaIds: item.tarefasAPagar.map((tarefa) => tarefa.id),
+      observacao: "Fechamento de período",
+      tipoPagamento: "fechamento",
+      periodoInicio: Timestamp.fromDate(inicio),
+      periodoFim: Timestamp.fromDate(fim),
+    });
+    item.tarefasAPagar.forEach((tarefa) => {
+      lote.update(doc(db, "tarefas", tarefa.id), { pago: true, pagamentoId: pagamentoRef.id });
+    });
+  });
+
+  await lote.commit();
+}
+
+document.getElementById("botaoFecharPeriodo").addEventListener("click", fecharPeriodo);
 
 function atualizarTextoPeriodo() {
   const inicio = new Date(inputInicio.value + "T00:00:00");

@@ -1,4 +1,4 @@
-import { db, storage, collection, onSnapshot, query, where, doc, updateDoc, deleteDoc, serverTimestamp, runTransaction, ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "./firebase-config.js";
+import { db, storage, collection, addDoc, onSnapshot, query, where, doc, updateDoc, deleteDoc, serverTimestamp, runTransaction, ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "./firebase-config.js";
 import { saldoDisponivelCentavos, formatarReais } from "./calculos.js";
 
 const TAMANHO_MAXIMO_PX = 1280;
@@ -41,6 +41,8 @@ document.getElementById("saudacao").textContent = "Olá, " + (nomesExibidos[cria
 const listaFazer = document.getElementById("pfazer");
 const listaConcluidas = document.getElementById("pconcluidas");
 const listaPerdidas = document.getElementById("pperdidas");
+const listaRecurso = document.getElementById("precurso");
+const listaRecebido = document.getElementById("precebido");
 const listaBonus = document.getElementById("bonus");
 const saldoElemento = document.querySelector(".saldo");
 const tarefasQuery = query(collection(db, "tarefas"), where("criancaId", "==", criancaId));
@@ -48,7 +50,7 @@ const tarefasQuery = query(collection(db, "tarefas"), where("criancaId", "==", c
 async function expirarSeVencida(tarefaId, tarefa) {
   if (tarefa.status !== "disponivel" && tarefa.status !== "aberta") return;
   if (tarefa.prazo.toDate() < new Date()) {
-    await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp() });
+    await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp(), causaPerda: "expiracao" });
   }
 }
 
@@ -58,13 +60,57 @@ async function excluirTarefa(tarefaId, tarefa) {
   await deleteDoc(doc(db, "tarefas", tarefaId));
 }
 
+function formatarPrazo(prazoTimestamp) {
+  const data = prazoTimestamp.toDate();
+  const diffHoras = (data - new Date()) / (1000 * 60 * 60);
+  let contagem;
+  if (diffHoras < 0) contagem = "vencido";
+  else if (diffHoras < 24) contagem = "vence em menos de 1 dia";
+  else contagem = `vence em ${Math.ceil(diffHoras / 24)} dia(s)`;
+  return `${data.toLocaleString("pt-BR")} (${contagem})`;
+}
+
+async function abrirChamado(tarefaId, tarefa) {
+  const motivo = prompt("Explique por que essa tarefa não deveria ter sido perdida:");
+  if (motivo === null) return;
+  if (motivo.trim() === "") {
+    alert("É necessário explicar o motivo do chamado.");
+    return;
+  }
+  try {
+    const chamadoRef = await addDoc(collection(db, "chamados"), {
+      tarefaId,
+      criancaId,
+      nomeTarefa: tarefa.nome,
+      valorCentavos: tarefa.valorCentavos,
+      status: "aberto",
+      dataAbertura: serverTimestamp(),
+      dataResolucao: null,
+    });
+    await addDoc(collection(db, "chamados", chamadoRef.id, "mensagens"), {
+      autor: criancaId,
+      texto: motivo.trim(),
+      data: serverTimestamp(),
+    });
+    await updateDoc(doc(db, "tarefas", tarefaId), {
+      status: "em_recurso",
+      chamadoId: chamadoRef.id,
+    });
+  } catch (erro) {
+    console.error(erro);
+    alert("Não foi possível abrir o chamado. Tente novamente.");
+  }
+}
+
 onSnapshot(tarefasQuery, (snapshot) => {
   listaFazer.innerHTML = "<h3>Tarefas para fazer</h3>";
   listaConcluidas.innerHTML = "<h3>Concluídas</h3>";
   listaPerdidas.innerHTML = "<h3>Perdidas</h3>";
+  listaRecurso.innerHTML = "<h3>Em recurso</h3>";
   var temFazer = false;
   var temConcluidas = false;
   var temPerdidas = false;
+  var temRecurso = false;
   const tarefasAprovadas = [];
 
   snapshot.forEach((docSnap) => {
@@ -83,6 +129,7 @@ onSnapshot(tarefasQuery, (snapshot) => {
         <h4>${tarefa.nome}</h4>
         <p>${tarefa.descricao}</p>
         <p>Valor: ${valorReais}</p>
+        <p>Prazo: ${formatarPrazo(tarefa.prazo)}</p>
         <p>Tentativas restantes: ${tentativasRestantes}</p>
         ${avisoRejeicao}
         <textarea placeholder="Observação (opcional)" id="obs-${tarefaId}"></textarea>
@@ -112,23 +159,60 @@ onSnapshot(tarefasQuery, (snapshot) => {
       temConcluidas = true;
     } else if (tarefa.status === "perdida") {
       const motivo = tarefa.motivoRejeicao ? `<p>Motivo: ${tarefa.motivoRejeicao}</p>` : "";
+      const podeAbrirChamado = !tarefa.chamadoId && ["rejeicao", "expiracao"].includes(tarefa.causaPerda);
+      const botaoChamado = podeAbrirChamado ? `<button class="botao morango-chamado">Abrir chamado</button>` : "";
       item.innerHTML = `
         <h4>${tarefa.nome}</h4>
         <p>${tarefa.descricao}</p>
         <p>Valor: ${valorReais}</p>
         ${motivo}
+        ${botaoChamado}
         <button class="botao abacaxi6">×</button>
       `;
       item.querySelector(".abacaxi6").addEventListener("click", () => excluirTarefa(tarefaId, tarefa));
+      const btnChamado = item.querySelector(".morango-chamado");
+      if (btnChamado) btnChamado.addEventListener("click", () => abrirChamado(tarefaId, tarefa));
       listaPerdidas.appendChild(item);
       temPerdidas = true;
+    } else if (tarefa.status === "em_recurso") {
+      item.innerHTML = `
+        <h4>${tarefa.nome}</h4>
+        <p>${tarefa.descricao}</p>
+        <p>Valor: ${valorReais}</p>
+        <p>Chamado aberto — aguardando decisão do avaliador.</p>
+      `;
+      listaRecurso.appendChild(item);
+      temRecurso = true;
     }
   });
 
   if (!temFazer) listaFazer.innerHTML += "<p>Nenhuma tarefa ainda.</p>";
   if (!temConcluidas) listaConcluidas.innerHTML += "<p>Nenhuma tarefa concluída ainda.</p>";
   if (!temPerdidas) listaPerdidas.innerHTML += "<p>Nenhuma tarefa perdida.</p>";
+  if (!temRecurso) listaRecurso.innerHTML += "<p>Nenhum chamado em aberto.</p>";
   saldoElemento.textContent = "Saldo total: " + formatarReais(saldoDisponivelCentavos(tarefasAprovadas));
+});
+
+const pagamentosQuery = query(collection(db, "pagamentos"), where("criancaId", "==", criancaId));
+
+onSnapshot(pagamentosQuery, (snapshot) => {
+  listaRecebido.innerHTML = "<h3>Recebido</h3>";
+  if (snapshot.empty) {
+    listaRecebido.innerHTML += "<p>Nenhum pagamento registrado ainda.</p>";
+    return;
+  }
+
+  const pagamentos = snapshot.docs
+    .map((docSnap) => docSnap.data())
+    .sort((a, b) => (b.dataPagamento?.toMillis() || 0) - (a.dataPagamento?.toMillis() || 0));
+
+  pagamentos.forEach((pagamento) => {
+    const data = pagamento.dataPagamento ? pagamento.dataPagamento.toDate().toLocaleDateString("pt-BR") : "—";
+    const rotulo = pagamento.tipoPagamento === "fechamento" ? "Fechamento de período" : "Pagamento";
+    const item = document.createElement("div");
+    item.innerHTML = `<p>${data} — ${rotulo} — ${formatarReais(pagamento.valorCentavos)}</p>`;
+    listaRecebido.appendChild(item);
+  });
 });
 
 async function concluirTarefa(tarefaId, tentativasAtuais) {

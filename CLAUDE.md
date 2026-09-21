@@ -4,7 +4,9 @@ Portal web doméstico para gerenciar mesada por tarefas: o pai (`master`) cria
 tarefas com valor e prazo para Anthony ou Gabriel (`junior`), cada criança
 comprova a execução com foto, o pai aprova e o sistema calcula o saldo. Tem
 tarefa "bônus" (sem dono, disputada pelas duas crianças) e registro de
-pagamento com histórico permanente.
+pagamento com histórico permanente. Um quarto perfil, `avaliador`, resolve
+chamados abertos por uma criança quando uma tarefa é reprovada na 3ª
+tentativa ou expira — dando a ela uma última chance de recurso.
 
 O projeto nasceu de um escopo formal (regras de negócio numeradas RN01–RN13
 e um backlog de 37 atividades A01–A37, combinado com o cliente doméstico —
@@ -23,29 +25,38 @@ iniciante não consiga acompanhar.
 
 ## Stack
 
-- **Firestore**: dados (`perfis`, `tarefas`, `pagamentos`).
+- **Firestore**: dados (`perfis`, `tarefas`, `pagamentos`, `chamados` + subcoleção `chamados/{id}/mensagens`).
 - **Storage**: até 5 anexos de comprovação por tarefa, foto (máx. 5MB) ou vídeo (máx. 15MB) — `tarefas/{tarefaId}/anexos/{indice}.{ext}`. Tarefas antigas podem ter um único `tarefas/{tarefaId}/comprovante.jpg` legado (ver campo `fotoUrl` abaixo).
 - **Anonymous Auth**: só para as regras de segurança exigirem `request.auth != null`. Ver limitação abaixo.
 - **Hospedagem**: GitHub Pages — todo caminho de arquivo é relativo.
 
 ## Modelo de dados
 
-**`perfis/{id}`** — `id` é um dos três valores fixos: `pai`, `anthony`, `gabriel`.
-- `nome`, `tipo` (`master` | `junior`), `avatarCor`
+**`perfis/{id}`** — `id` é um dos quatro valores fixos: `pai`, `anthony`, `gabriel`, `avaliador`.
+- `nome`, `tipo` (`master` | `junior` | `avaliador`), `avatarCor`
 - `pinHash` (SHA-256 hex de `pin + ":" + id`, ver `js/pin.js`), `pinDefinido` (bool)
-- Não existe CRUD de perfis pela tela — os três são carga manual pelo console do Firebase.
+- Não existe CRUD de perfis pela tela — os quatro são carga manual pelo console do Firebase.
+- Assim como `tipo` já era antes, `tipo` continua sem uso funcional no código — quem decide comportamento é sempre comparação direta do id (`"pai"`, `"anthony"`, `"gabriel"`, `"avaliador"`) espalhada pelas guardas de sessão, `index.html`, `firestore.rules` etc. Não há um array único de perfis compartilhado; adicionar um 5º perfil exigiria tocar nos mesmos pontos que o `avaliador` tocou.
 
 **`tarefas/{id}`**
 - `nome`, `descricao`, `valorCentavos` (inteiro, nunca float)
 - `tipoAtribuicao`: `"fixa" | "bonus"` — **desvio do escopo original**, que previa `"direcionada"`. O código já em produção usa `"fixa"`; mantive por não valer a pena migrar dados existentes por um nome. Se migrar um dia, seed roda antes do rename.
 - `criancaId`: `"anthony" | "gabriel" | null` (null só em bônus não aceito)
 - `prazo`, `status`, `tentativas` (int, nunca zera por rejeição — RN12), `motivoRejeicao`, `observacaoCrianca`
+- `causaPerda`: `"rejeicao" | "expiracao" | "cancelamento" | null` — gravado toda vez que `status` vira `"perdida"` (em `js/pai.js`: `rejeitarTarefa` na 3ª tentativa, `expirarSeVencida`, `cancelarTarefa`; a mesma `expirarSeVencida` existe duplicada em `js/crianca.js`). Só `"rejeicao"` e `"expiracao"` deixam a criança abrir um chamado — cancelamento manual do pai é decisão dele, não cabe recurso.
+- `chamadoId`: `string | null` — referência ao doc em `chamados` aberto para essa tarefa. Impede abrir um segundo chamado para a mesma tarefa; é limpo (`null`) quando o avaliador resolve o chamado (aprovado ou negado) ou quando o pai reabre a tarefa.
 - `anexos`: array de até 5 `{url, tipo: "imagem" | "video", nome}`, gravado por `js/crianca.js` (`concluirTarefa`). Substituiu o campo `fotoUrl` (string única, um só arquivo) usado antes desta sessão — `fotoUrl` ainda pode existir em tarefas antigas e `js/pai.js` (`htmlAnexos`) sabe exibir esse formato legado como fallback quando `anexos` não existe. Rejeição/exclusão de tarefa apaga a pasta `tarefas/{tarefaId}/anexos/` inteira via `listAll` (não só um arquivo fixo).
 - `dataCriacao`, `dataAceite`, `dataConclusao`, `dataAprovacao`, `dataPerda` (todos `serverTimestamp()`)
 - `pago` (bool), `pagamentoId`
-- `pago` só é marcado `true` pelo fluxo de pagamento em `resumoa26.js` (`registrarPagamento`, grava `pagamentos` + `writeBatch`). Não existe mais um botão "marcar como pago" avulso em `pai.js` — havia um antes desta sessão e foi removido porque marcava `pago=true` sem criar o documento em `pagamentos`, violando a RN08 (todo pagamento tem que deixar rastro no histórico).
+- `pago` só é marcado `true` pelo fluxo de pagamento em `resumoa26.js` (`registrarPagamento` para uma criança, ou `fecharPeriodo` para as duas de uma vez — ambos gravam `pagamentos` + `writeBatch`). Não existe mais um botão "marcar como pago" avulso em `pai.js` — havia um antes desta sessão e foi removido porque marcava `pago=true` sem criar o documento em `pagamentos`, violando a RN08 (todo pagamento tem que deixar rastro no histórico).
 
 **`pagamentos/{id}`** — `criancaId`, `valorCentavos`, `dataPagamento`, `tarefaIds[]`, `observacao`. Nunca é editado ou apagado pela aplicação (RN08).
+- `tipoPagamento`: `"manual" | "fechamento"` — `"manual"` quando o pai paga uma criança avulsa (`registrarPagamento`), `"fechamento"` quando é o fechamento de período (`fecharPeriodo`, paga as duas de uma vez). Campo opcional/sem validação estrita na regra, mesmo nível de `observacao`.
+- `periodoInicio`/`periodoFim` (`Timestamp`) — só presentes em `tipoPagamento: "fechamento"`, vêm do filtro de data já selecionado em `resumoa26.js`.
+- A criança vê o próprio histórico de `pagamentos` na aba "Recebido" de `crianca.html`/`crianca.js` (antes só o pai via isso em `resumoa26.js`).
+
+**`chamados/{id}`** — recurso aberto pela criança quando `causaPerda` é `"rejeicao"` ou `"expiracao"`. Campos: `tarefaId`, `criancaId`, `nomeTarefa`/`valorCentavos` (denormalizados na criação, para listar sem buscar a tarefa de novo), `status` (`"aberto" | "aprovado" | "negado"`), `dataAbertura`, `dataResolucao`. Nunca é apagado (mesmo padrão de `pagamentos`); `update` só permite a transição `aberto → aprovado|negado`, uma via só.
+- **Subcoleção `chamados/{id}/mensagens/{msgId}`**: `autor` (`"anthony"|"gabriel"|"pai"|"avaliador"`, vem de `sessionStorage.perfilAtivo`), `texto`, `data`. Thread imutável (sem update/delete) — a criança escreve a 1ª mensagem ao abrir o chamado (é o motivo, não existe campo `motivo` separado), o pai pode adicionar contexto, o avaliador lê tudo antes de decidir. Gerenciado por `chamados.html`/`js/chamados.js`, visível para `pai` e `avaliador` (permissões diferentes na mesma tela: só o avaliador vê os botões de decisão).
 
 ## RN01 — máquina de estados da tarefa
 
@@ -53,12 +64,18 @@ iniciante não consiga acompanhar.
 aberta        → disponivel   (criança aceita bônus, js/crianca.js:aceitarBonus)
 aberta        → perdida      (expira ou é cancelada sem ninguém aceitar)
 disponivel    → aguardando_aprovacao → aprovada
-disponivel    → perdida      (expiração ou cancelamento manual)
+disponivel    → perdida      (expiração, causaPerda="expiracao", ou cancelamento manual, causaPerda="cancelamento")
 aguardando_aprovacao → disponivel   (pai rejeita, tentativas < 3)
-aguardando_aprovacao → perdida      (pai rejeita na tentativa 3)
-perdida       → disponivel | aberta (pai reabre — zera tentativas)
+aguardando_aprovacao → perdida      (pai rejeita na tentativa 3, causaPerda="rejeicao")
+perdida (causaPerda em [rejeicao, expiracao]) → em_recurso   (criança abre chamado, js/crianca.js:abrirChamado)
+em_recurso    → aprovada     (avaliador aprova o chamado, chamados.html)
+em_recurso    → perdida      (avaliador nega o chamado — causaPerda é mantido)
+perdida       → disponivel | aberta (pai reabre — zera tentativas, causaPerda e chamadoId voltam a null)
 ```
 `aberta` só existe em tarefa bônus. Tarefa direcionada nasce em `disponivel`.
+`em_recurso` só existe enquanto um chamado está `"aberto"` — ver seção de
+`chamados` no modelo de dados. Tarefa `perdida` por cancelamento manual do
+pai nunca vira `em_recurso` (não cabe recurso para essa causa).
 
 ## Cálculos financeiros (RN05/06/07) — `js/calculos.js`
 
@@ -74,11 +91,12 @@ aqui, não espalhada pelas telas.
 
 | Arquivo | Papel |
 |---|---|
-| `index.html` | seleção de perfil (3 botões) + modal de PIN |
+| `index.html` | seleção de perfil (4 botões) + modal de PIN |
 | `js/pin.js` | fluxo de PIN (primeiro acesso define hash, acessos seguintes conferem) |
-| `pai.html` / `js/pai.js` | painel do `master`: criar/gerenciar tarefas, aprovar/rejeitar, resetar PIN |
-| `crianca.html` / `js/crianca.js` | painel único do `junior`, dirigido por `sessionStorage.perfilAtivo` (`anthony` ou `gabriel`) |
-| `resumoa26.html` / `js/resumoa26.js` | relatório por criança, filtro de período, registrar pagamento, histórico |
+| `pai.html` / `js/pai.js` | painel do `master`: criar tarefa (avulsa ou em lote para dias diferentes), aprovar/rejeitar, resetar PIN, link para chamados |
+| `crianca.html` / `js/crianca.js` | painel único do `junior`, dirigido por `sessionStorage.perfilAtivo` (`anthony` ou `gabriel`); abas de tarefas, "Em recurso" e "Recebido" (histórico de pagamentos) |
+| `resumoa26.html` / `js/resumoa26.js` | relatório por criança, filtro de período, registrar pagamento avulso ou fechar período (as duas crianças de uma vez), histórico |
+| `chamados.html` / `js/chamados.js` | recurso de tarefa perdida: lista chamados, thread de mensagens, aprovar/negar (só `avaliador`). Página só de `pai` e `avaliador` |
 | `js/calculos.js` | funções financeiras puras |
 | `js/firebase-config.js` | inicialização do Firebase + re-export dos helpers do SDK usados no projeto |
 | `js/auth.js` | login anônimo, expõe erro em `#erro-auth` quando presente na página |
@@ -100,17 +118,21 @@ garantem o que dá para garantir sem login real:
 - exigem usuário autenticado;
 - validam formato dos dados gravados;
 - impedem excluir tarefa paga ou apagar/editar um pagamento (histórico financeiro imutável);
-- impedem zerar o PIN do perfil `pai` pelo app (só recuperação manual no console).
+- impedem zerar o PIN do perfil `pai` pelo app (só recuperação manual no console);
+- impedem apagar um chamado ou editar uma mensagem depois de escrita (histórico do recurso é permanente, mesmo padrão de `pagamentos`);
+- restringem a transição de status de um chamado a `aberto → aprovado|negado`, uma via só.
 
-Não escreva uma regra que finja checar "é o pai" — não é possível com essa
-arquitetura. Se isso precisar mudar, é um login de verdade (Firebase Auth
-com e-mail/senha ou custom claims), que é uma mudança de escopo, não um
-ajuste de regra.
+Não escreva uma regra que finja checar "é o pai" ou "é o avaliador" — não é
+possível com essa arquitetura (quem decide o chamado é uma convenção do
+cliente: os botões de aprovar/negar em `chamados.html` só aparecem quando
+`sessionStorage.perfilAtivo === "avaliador"`, não uma garantia de servidor).
+Se isso precisar mudar, é um login de verdade (Firebase Auth com e-mail/
+senha ou custom claims), que é uma mudança de escopo, não um ajuste de regra.
 
 ## O que ainda depende de ação manual (eu não tenho acesso ao console Firebase)
 
-1. **Perfil do Gabriel**: criar documento em `perfis/gabriel` com `nome`, `tipo: "junior"`, `avatarCor`, `pinDefinido: false` — igual ao que já existe para `pai` e `anthony`.
-2. **Publicar `firestore.rules` e `storage.rules`** no console do Firebase (Firestore → Regras / Storage → Regras). Testar um caso positivo e um negativo antes de considerar concluído (A09).
+1. **Perfil do avaliador**: criar documento em `perfis/avaliador` com `nome`, `tipo: "avaliador"`, `avatarCor`, `pinDefinido: false` — igual ao que já existe para `pai`, `anthony` e `gabriel`.
+2. **Publicar `firestore.rules` e `storage.rules`** no console do Firebase (Firestore → Regras / Storage → Regras), incluindo as regras novas de `chamados`. Testar um caso positivo e um negativo antes de considerar concluído (A09).
 3. Confirmar dependência: `firestore.rules` bloqueia `create` em `perfis`, então não existe (nem faz sentido existir) um `scripts/seed.js` rodando com o SDK client-side — a carga inicial é sempre manual pelo console, como documentado no `README.md`.
 
 ## Pendências conhecidas do escopo original (não implementadas)
