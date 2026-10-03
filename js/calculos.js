@@ -15,6 +15,14 @@ export function tarefasAprovadasNoPeriodo(tarefas, inicio, fim) {
     });
 }
 
+export function tarefasAPagarNoPeriodo(tarefas, inicio, fim) {
+  return tarefasAprovadasNoPeriodo(tarefas, inicio, fim).filter((tarefa) => !tarefa.pago);
+}
+
+export function somaCentavos(tarefas) {
+  return tarefas.reduce((soma, tarefa) => soma + tarefa.valorCentavos, 0);
+}
+
 export function dinheiroGeradoCentavos(tarefas, inicio, fim) {
   return tarefasAprovadasNoPeriodo(tarefas, inicio, fim).reduce((soma, tarefa) => soma + tarefa.valorCentavos, 0);
 }

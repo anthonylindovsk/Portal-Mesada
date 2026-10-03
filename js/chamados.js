@@ -40,17 +40,17 @@ async function resolverChamado(chamado, decisao) {
   const lote = writeBatch(db);
   lote.update(doc(db, "chamados", chamado.id), { status: decisao, dataResolucao: serverTimestamp() });
 
+  // chamadoId fica gravado de propósito: é ele que impede a criança de abrir
+  // um 2º chamado para a mesma tarefa (só o pai reabrindo a tarefa o limpa).
   if (decisao === "aprovado") {
     lote.update(doc(db, "tarefas", chamado.tarefaId), {
       status: "aprovada",
       dataAprovacao: serverTimestamp(),
-      chamadoId: null,
     });
   } else {
     lote.update(doc(db, "tarefas", chamado.tarefaId), {
       status: "perdida",
       dataPerda: serverTimestamp(),
-      chamadoId: null,
     });
   }
 

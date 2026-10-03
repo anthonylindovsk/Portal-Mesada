@@ -1,4 +1,4 @@
-import { db, storage, collection, addDoc, onSnapshot, query, where, doc, updateDoc, deleteDoc, serverTimestamp, runTransaction, ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "./firebase-config.js";
+import { db, storage, collection, addDoc, onSnapshot, query, where, orderBy, doc, updateDoc, deleteDoc, serverTimestamp, runTransaction, ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "./firebase-config.js";
 import { saldoDisponivelCentavos, formatarReais } from "./calculos.js";
 
 const TAMANHO_MAXIMO_PX = 1280;
@@ -41,7 +41,7 @@ document.getElementById("saudacao").textContent = "Olá, " + (nomesExibidos[cria
 const listaFazer = document.getElementById("pfazer");
 const listaConcluidas = document.getElementById("pconcluidas");
 const listaPerdidas = document.getElementById("pperdidas");
-const listaRecurso = document.getElementById("precurso");
+const listaChamados = document.getElementById("precurso");
 const listaRecebido = document.getElementById("precebido");
 const listaBonus = document.getElementById("bonus");
 const saldoElemento = document.querySelector(".saldo");
@@ -114,11 +114,9 @@ onSnapshot(tarefasQuery, (snapshot) => {
   listaFazer.innerHTML = "<h3>Tarefas para fazer</h3>";
   listaConcluidas.innerHTML = "<h3>Concluídas</h3>";
   listaPerdidas.innerHTML = "<h3>Perdidas</h3>";
-  listaRecurso.innerHTML = "<h3>Em recurso</h3>";
   var temFazer = false;
   var temConcluidas = false;
   var temPerdidas = false;
-  var temRecurso = false;
   const tarefasAprovadas = [];
 
   snapshot.forEach((docSnap) => {
@@ -186,44 +184,150 @@ onSnapshot(tarefasQuery, (snapshot) => {
       if (btnChamado) btnChamado.addEventListener("click", () => abrirChamado(tarefaId, tarefa));
       listaPerdidas.appendChild(item);
       temPerdidas = true;
-    } else if (tarefa.status === "em_recurso") {
-      item.innerHTML = `
-        <h4>${tarefa.nome}</h4>
-        <p>${tarefa.descricao}</p>
-        <p>Valor: ${valorReais}</p>
-        <p>Chamado aberto — aguardando decisão do avaliador.</p>
-      `;
-      listaRecurso.appendChild(item);
-      temRecurso = true;
     }
   });
 
   if (!temFazer) listaFazer.innerHTML += "<p>Nenhuma tarefa ainda.</p>";
   if (!temConcluidas) listaConcluidas.innerHTML += "<p>Nenhuma tarefa concluída ainda.</p>";
   if (!temPerdidas) listaPerdidas.innerHTML += "<p>Nenhuma tarefa perdida.</p>";
-  if (!temRecurso) listaRecurso.innerHTML += "<p>Nenhum chamado em aberto.</p>";
-  saldoElemento.textContent = "Saldo total: " + formatarReais(saldoDisponivelCentavos(tarefasAprovadas));
+  saldoElemento.textContent = "A receber: " + formatarReais(saldoDisponivelCentavos(tarefasAprovadas));
+  tarefasAprovadasAtuais = tarefasAprovadas;
+  renderizarRecebido();
 });
 
 const pagamentosQuery = query(collection(db, "pagamentos"), where("criancaId", "==", criancaId));
+let pagamentosAtuais = [];
+let tarefasAprovadasAtuais = [];
+
+function formatarData(timestamp) {
+  return timestamp ? timestamp.toDate().toLocaleDateString("pt-BR") : "—";
+}
+
+function textoPeriodo(pagamento) {
+  if (!pagamento.periodoInicio || !pagamento.periodoFim) return "";
+  return `, período ${formatarData(pagamento.periodoInicio)} a ${formatarData(pagamento.periodoFim)}`;
+}
+
+// Aba "Recebido": saldo atual (desde o último fechamento), último
+// fechamento e histórico. Depende de tarefas e pagamentos, então é
+// redesenhada quando qualquer um dos dois snapshots chega.
+function renderizarRecebido() {
+  const ultimoFechamento = pagamentosAtuais.find((pagamento) => pagamento.tipoPagamento === "fechamento");
+  const aPagar = tarefasAprovadasAtuais.filter((tarefa) => !tarefa.pago);
+  const desde = ultimoFechamento ? ` (desde o último fechamento em ${formatarData(ultimoFechamento.dataPagamento)})` : "";
+
+  let html = "<h3>Recebido</h3>";
+  html += `<div><h4>Saldo atual${desde}</h4>
+    <p>${aPagar.length} tarefa(s) aprovada(s) aguardando pagamento</p>
+    <p>Você vai receber: ${formatarReais(saldoDisponivelCentavos(tarefasAprovadasAtuais))}</p></div>`;
+
+  if (ultimoFechamento) {
+    html += `<div><h4>Último fechamento</h4>
+      <p>${formatarReais(ultimoFechamento.valorCentavos)} pagos em ${formatarData(ultimoFechamento.dataPagamento)}${textoPeriodo(ultimoFechamento)}</p></div>`;
+  }
+
+  html += "<div><h4>Histórico de pagamentos</h4>";
+  if (pagamentosAtuais.length === 0) {
+    html += "<p>Nenhum pagamento registrado ainda.</p>";
+  } else {
+    pagamentosAtuais.forEach((pagamento) => {
+      const rotulo = pagamento.tipoPagamento === "fechamento" ? "Fechamento de período" : "Pagamento";
+      const qtd = (pagamento.tarefaIds || []).length;
+      html += `<p>${formatarData(pagamento.dataPagamento)} — ${rotulo} — ${formatarReais(pagamento.valorCentavos)} — ${qtd} tarefa(s)${textoPeriodo(pagamento)}</p>`;
+    });
+  }
+  html += "</div>";
+  listaRecebido.innerHTML = html;
+}
 
 onSnapshot(pagamentosQuery, (snapshot) => {
-  listaRecebido.innerHTML = "<h3>Recebido</h3>";
+  pagamentosAtuais = snapshot.docs
+    .map((docSnap) => docSnap.data())
+    .sort((a, b) => (b.dataPagamento?.toMillis() || 0) - (a.dataPagamento?.toMillis() || 0));
+  renderizarRecebido();
+});
+
+// Aba "Chamados": acompanha cada chamado da criança até o avaliador decidir.
+const chamadosQuery = query(collection(db, "chamados"), where("criancaId", "==", criancaId));
+const nomesAutores = { anthony: "Anthony", gabriel: "Gabriel", pai: "Pai", avaliador: "Avaliador" };
+const statusChamado = { aberto: "Aberto", aprovado: "Aprovado", negado: "Negado" };
+const resultadoChamado = {
+  aprovado: "Aprovado pelo avaliador — a tarefa foi concluída e o valor entrou no seu saldo.",
+  negado: "Negado pelo avaliador. Não há novo recurso para essa tarefa.",
+};
+let cancelarMensagens = [];
+
+function acompanharMensagens(container, chamadoId) {
+  const mensagensQuery = query(collection(db, "chamados", chamadoId, "mensagens"), orderBy("data", "asc"));
+  const cancelar = onSnapshot(mensagensQuery, (snapshot) => {
+    container.innerHTML = snapshot.empty
+      ? "<p>Nenhuma mensagem ainda.</p>"
+      : snapshot.docs
+          .map((docSnap) => {
+            const mensagem = docSnap.data();
+            const data = mensagem.data ? mensagem.data.toDate().toLocaleString("pt-BR") : "";
+            return `<p><strong>${nomesAutores[mensagem.autor] || mensagem.autor}</strong> (${data}): ${mensagem.texto}</p>`;
+          })
+          .join("");
+  });
+  cancelarMensagens.push(cancelar);
+}
+
+async function enviarMensagemChamado(chamadoId, texto) {
+  if (texto.trim() === "") return;
+  try {
+    await addDoc(collection(db, "chamados", chamadoId, "mensagens"), {
+      autor: criancaId,
+      texto: texto.trim(),
+      data: serverTimestamp(),
+    });
+  } catch (erro) {
+    console.error(erro);
+    alert("Não foi possível enviar a mensagem. Tente novamente.");
+  }
+}
+
+onSnapshot(chamadosQuery, (snapshot) => {
+  // cada re-render recria os cards, então os listeners de mensagens antigos saem
+  cancelarMensagens.forEach((cancelar) => cancelar());
+  cancelarMensagens = [];
+  listaChamados.innerHTML = "<h3>Chamados</h3>";
+
   if (snapshot.empty) {
-    listaRecebido.innerHTML += "<p>Nenhum pagamento registrado ainda.</p>";
+    listaChamados.innerHTML += "<p>Nenhum chamado ainda.</p>";
     return;
   }
 
-  const pagamentos = snapshot.docs
-    .map((docSnap) => docSnap.data())
-    .sort((a, b) => (b.dataPagamento?.toMillis() || 0) - (a.dataPagamento?.toMillis() || 0));
+  const chamados = snapshot.docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .sort((a, b) => (b.dataAbertura?.toMillis() || 0) - (a.dataAbertura?.toMillis() || 0));
 
-  pagamentos.forEach((pagamento) => {
-    const data = pagamento.dataPagamento ? pagamento.dataPagamento.toDate().toLocaleDateString("pt-BR") : "—";
-    const rotulo = pagamento.tipoPagamento === "fechamento" ? "Fechamento de período" : "Pagamento";
+  chamados.forEach((chamado) => {
+    const aberto = chamado.status === "aberto";
     const item = document.createElement("div");
-    item.innerHTML = `<p>${data} — ${rotulo} — ${formatarReais(pagamento.valorCentavos)}</p>`;
-    listaRecebido.appendChild(item);
+    item.innerHTML = `
+      <h4>${chamado.nomeTarefa}</h4>
+      <p>Valor: ${formatarReais(chamado.valorCentavos)}</p>
+      <p>Status: ${statusChamado[chamado.status] || chamado.status}</p>
+      <p>Aberto em ${formatarData(chamado.dataAbertura)}${chamado.dataResolucao ? " — resolvido em " + formatarData(chamado.dataResolucao) : ""}</p>
+      <div class="chamado-mensagens"><p>Carregando mensagens...</p></div>
+      ${aberto
+        ? `<p>Aguardando decisão do avaliador.</p>
+           <textarea class="chamado-texto" placeholder="Adicionar mensagem"></textarea>
+           <button class="botao chamado-enviar">Enviar mensagem</button>`
+        : `<p>${resultadoChamado[chamado.status] || ""}</p>`}
+    `;
+    acompanharMensagens(item.querySelector(".chamado-mensagens"), chamado.id);
+
+    const btnEnviar = item.querySelector(".chamado-enviar");
+    if (btnEnviar) {
+      btnEnviar.addEventListener("click", () => {
+        const campo = item.querySelector(".chamado-texto");
+        enviarMensagemChamado(chamado.id, campo.value);
+        campo.value = "";
+      });
+    }
+    listaChamados.appendChild(item);
   });
 });
 
