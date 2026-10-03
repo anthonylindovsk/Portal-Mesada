@@ -178,6 +178,25 @@ async function reabrirTarefa(tarefaId) {
   });
 }
 
+// Só uma tarefa fica em edição por vez; o id fica fora do HTML para o
+// onSnapshot redesenhar o formulário aberto em vez de fechá-lo.
+let editandoId = null;
+
+async function salvarEdicao(tarefaId, valorTexto, prazoTexto) {
+  const valorCentavos = Math.round(Number(valorTexto) * 100);
+  const prazo = new Date(prazoTexto);
+  if (!valorCentavos || valorCentavos <= 0) {
+    alert("Informe um valor maior que zero.");
+    return;
+  }
+  if (isNaN(prazo.getTime()) || prazo < new Date()) {
+    alert("O prazo precisa ser uma data válida no futuro.");
+    return;
+  }
+  await updateDoc(doc(db, "tarefas", tarefaId), { valorCentavos, prazo: Timestamp.fromDate(prazo) });
+  editandoId = null;
+}
+
 async function cancelarTarefa(tarefaId) {
   if (!confirm("Tem certeza que quer cancelar essa tarefa? Ela vai virar perdida.")) return;
   await updateDoc(doc(db, "tarefas", tarefaId), { status: "perdida", dataPerda: serverTimestamp(), causaPerda: "cancelamento" });
@@ -196,25 +215,90 @@ async function excluirTarefa(tarefaId, tarefa) {
   await deleteDoc(doc(db, "tarefas", tarefaId));
 }
 
+function montarFormEdicao(tarefaId, tarefa) {
+  const form = document.createElement("div");
+  form.innerHTML = `
+    <label>Valor (R$): <input type="number" class="edicao-valor" min="0" step="0.01" value="${tarefa.valorCentavos / 100}"></label>
+    <label>Prazo: <input type="datetime-local" class="edicao-prazo" value="${paraDatetimeLocal(tarefa.prazo.toDate())}"></label>
+    <button class="botao edicao-salvar">Salvar</button>
+    <button class="botao edicao-cancelar">Cancelar edição</button>
+  `;
+  form.querySelector(".edicao-salvar").addEventListener("click", () => {
+    salvarEdicao(tarefaId, form.querySelector(".edicao-valor").value, form.querySelector(".edicao-prazo").value);
+  });
+  form.querySelector(".edicao-cancelar").addEventListener("click", () => {
+    editandoId = null;
+    form.remove();
+  });
+  return form;
+}
+
 const listaTarefas = document.getElementById("morango2");
 const tarefasQuery = query(collection(db, "tarefas"), orderBy("dataCriacao", "desc"));
 
+const filtroCrianca = document.getElementById("filtroCrianca");
+const filtroStatus = document.getElementById("filtroStatus");
+const botaoFiltrar = document.getElementById("botaoFiltrar");
+let tarefasDocs = [];
+// valores só mudam ao clicar em "Filtrar"; os selects sozinhos não alteram a lista
+let filtroAplicado = { crianca: "todas", status: "todos" };
+
+// "agendada" não é um status do banco: é disponivel/aberta cujo dia do
+// prazo ainda não chegou (a criança ainda não enxerga).
+function ehAgendada(tarefa) {
+  const prazoData = tarefa.prazo.toDate();
+  const inicioDoDiaPrazo = new Date(prazoData.getFullYear(), prazoData.getMonth(), prazoData.getDate());
+  return (tarefa.status === "disponivel" || tarefa.status === "aberta") && new Date() < inicioDoDiaPrazo;
+}
+
+function passaNoFiltro(tarefa) {
+  if (filtroAplicado.crianca === "bonus") {
+    if (tarefa.tipoAtribuicao !== "bonus") return false;
+  } else if (filtroAplicado.crianca !== "todas" && tarefa.criancaId !== filtroAplicado.crianca) {
+    return false;
+  }
+  if (filtroAplicado.status === "todos") return true;
+  if (filtroAplicado.status === "agendada") return ehAgendada(tarefa);
+  return tarefa.status === filtroAplicado.status;
+}
+
+botaoFiltrar.addEventListener("click", () => {
+  filtroAplicado = { crianca: filtroCrianca.value, status: filtroStatus.value };
+  renderizarTarefas();
+});
+
 onSnapshot(tarefasQuery, (snapshot) => {
+  tarefasDocs = snapshot.docs;
+  tarefasDocs.forEach((docSnap) => expirarSeVencida(docSnap.id, docSnap.data()));
+  renderizarTarefas();
+});
+
+function renderizarTarefas() {
   listaTarefas.innerHTML = "";
-  if (snapshot.empty) {
+  if (tarefasDocs.length === 0) {
     listaTarefas.innerHTML = "<p>Nenhuma tarefa criada ainda.</p>";
     return;
   }
 
-  snapshot.forEach((docSnap) => {
+  const visiveis = tarefasDocs.filter((docSnap) => passaNoFiltro(docSnap.data()));
+  if (visiveis.length === 0) {
+    listaTarefas.innerHTML = "<p>Nenhuma tarefa com esse filtro.</p>";
+    return;
+  }
+
+  visiveis.forEach((docSnap) => {
     const tarefa = docSnap.data();
     const tarefaId = docSnap.id;
-    expirarSeVencida(tarefaId, tarefa);
     const valorReais = formatarReais(tarefa.valorCentavos);
     const quem = tarefa.criancaId ? tarefa.criancaId : "Bônus — disputa aberta";
     const botaoReabrir = tarefa.status === "perdida" ? `<button class="botao uva3">Reabrir</button>` : "";
     const botaoCancelar = tarefa.status === "disponivel" ? `<button class="botao pera4">Cancelar</button>` : "";
     const botaoExcluir = ((tarefa.status === "aprovada" || tarefa.status === "perdida") && !tarefa.pago) ? `<button class="botao abacaxi6">×</button>` : "";
+    const botaoEditar = (tarefa.status === "disponivel" || tarefa.status === "aberta") ? `<button class="botao editar-tarefa">Editar valor/prazo</button>` : "";
+    const prazoData = tarefa.prazo.toDate();
+    const avisoAgendada = ehAgendada(tarefa)
+      ? `<p>Agendada: a criança só vê a partir de ${new Date(prazoData.getFullYear(), prazoData.getMonth(), prazoData.getDate()).toLocaleDateString("pt-BR")}</p>`
+      : "";
     const infoPagamento = tarefa.status === "aprovada" ? `<p>Pago: ${tarefa.pago ? "sim" : "não"}</p>` : "";
 
     const item = document.createElement("div");
@@ -222,13 +306,25 @@ onSnapshot(tarefasQuery, (snapshot) => {
       <h3>${tarefa.nome}</h3>
       <p>${tarefa.descricao}</p>
       <p>Valor: ${valorReais}</p>
+      <p>Prazo: ${prazoData.toLocaleString("pt-BR")}</p>
       <p>Para: ${quem}</p>
       <p>Status: ${tarefa.status}</p>
+      ${avisoAgendada}
       ${infoPagamento}
+      ${botaoEditar}
       ${botaoReabrir}
       ${botaoCancelar}
       ${botaoExcluir}
     `;
+    const btnEditar = item.querySelector(".editar-tarefa");
+    if (btnEditar) {
+      btnEditar.addEventListener("click", () => {
+        if (item.querySelector(".edicao-salvar")) return;
+        editandoId = tarefaId;
+        item.appendChild(montarFormEdicao(tarefaId, tarefa));
+      });
+      if (editandoId === tarefaId) item.appendChild(montarFormEdicao(tarefaId, tarefa));
+    }
     const btnReabrir = item.querySelector(".uva3");
     if (btnReabrir) btnReabrir.addEventListener("click", () => reabrirTarefa(tarefaId));
     const btnCancelar = item.querySelector(".pera4");
@@ -237,7 +333,7 @@ onSnapshot(tarefasQuery, (snapshot) => {
     if (btnExcluir) btnExcluir.addEventListener("click", () => excluirTarefa(tarefaId, tarefa));
     listaTarefas.appendChild(item);
   });
-});
+}
 
 const listaPendentes = document.getElementById("banana1");
 const pendentesQuery = query(collection(db, "tarefas"), where("status", "==", "aguardando_aprovacao"));

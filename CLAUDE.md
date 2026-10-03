@@ -138,6 +138,6 @@ senha ou custom claims), que é uma mudança de escopo, não um ajuste de regra.
 
 ## Pendências conhecidas do escopo original (não implementadas)
 
-- **Editar tarefa** e **refinamentos visuais do resumo** (cards lado a lado) não foram feitos — funcionalidade básica de resumo existe, mas não o polimento de layout específico.
+- **Editar nome/descrição da tarefa** (só valor e prazo são editáveis, em `pai.js`, para tarefas `disponivel`/`aberta`) e **refinamentos visuais do resumo** (cards lado a lado) não foram feitos — funcionalidade básica de resumo existe, mas não o polimento de layout específico.
 - **Revisão mobile completa** precisa de teste manual em celular real — não posso verificar isso.
 - Três perguntas do escopo original seguem em aberto e não foram respondidas nem implementadas (não inventei resposta): limite de tarefas bônus simultâneas por criança, se o `master` pode retirar uma tarefa bônus já aceita e devolvê-la à disputa, e se a criança deve ver o motivo das três rejeições quando a tarefa vira perdida por esgotar tentativas.
